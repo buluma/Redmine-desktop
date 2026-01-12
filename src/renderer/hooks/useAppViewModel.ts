@@ -101,6 +101,11 @@ export function useAppViewModel() {
         return saved === 'true';
     });
 
+    const followedIssueIdsRef = useRef(followedIssueIds);
+    useEffect(() => {
+        followedIssueIdsRef.current = followedIssueIds;
+    }, [followedIssueIds]);
+
     const [isLoading, setIsLoading] = useState(false);
     const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -201,6 +206,7 @@ export function useAppViewModel() {
             // Fetch issues for each active version
             for (const versionId of activeVersionArray) {
                 let offset = 0;
+                let versionFetched = 0;
                 const limit = 100;
                 while (true) {
                     const { issues, total_count } = await service.fetchIssues({
@@ -210,8 +216,9 @@ export function useAppViewModel() {
                         offset
                     });
                     allFetchedIssues = [...allFetchedIssues, ...issues];
+                    versionFetched += issues.length;
 
-                    if (allFetchedIssues.length >= total_count || issues.length < limit) {
+                    if (versionFetched >= total_count || issues.length < limit) {
                         break;
                     }
                     offset += limit;
@@ -331,13 +338,18 @@ export function useAppViewModel() {
                     offset += limit;
                 }
 
-                setFollowedIssueIds(followedIds);
-                // Save followed issue IDs to cache
-                try {
-                    localStorage.setItem('cachedFollowedIssueIds', JSON.stringify(Array.from(followedIds)));
-                } catch (e) {
-                    console.warn('Failed to cache followed IDs:', e);
-                }
+                // Only update state if the set of IDs actually changed
+                setFollowedIssueIds(prev => {
+                    if (prev.size === followedIds.size && Array.from(prev).every(id => followedIds.has(id))) {
+                        return prev;
+                    }
+                    try {
+                        localStorage.setItem('cachedFollowedIssueIds', JSON.stringify(Array.from(followedIds)));
+                    } catch (e) {
+                        console.warn('Failed to cache followed IDs:', e);
+                    }
+                    return followedIds;
+                });
 
                 // 合并关注和指派的任务到 allIssues，并清理已失效的缓存
                 setAllIssues(prev => {
@@ -349,7 +361,7 @@ export function useAppViewModel() {
                     // 清理逻辑：如果一个 Issue 原本是“关注”或“指派”状态，但现在不在远程返回的列表中，
                     // 且它也不属于任何当前活跃的版本，说明它已被删除或不再相关，应从缓存移除。
                     for (const issue of prev) {
-                        const wasFollowed = followedIssueIds.has(issue.id);
+                        const wasFollowed = followedIssueIdsRef.current.has(issue.id);
                         const wasAssigned = issue.assigned_to?.id === currentUser.id;
 
                         if ((wasFollowed || wasAssigned) && !refreshedFollowedAndAssignedIds.has(issue.id)) {
@@ -397,7 +409,7 @@ export function useAppViewModel() {
             isRefreshingRef.current = false;
             setIsBackgroundRefreshing(false);
         }
-    }, [service, currentUser, activeVersionIds, followedIssueIds]); // 增加 followedIssueIds 依赖以确保清理逻辑准确
+    }, [service, currentUser, activeVersionIds]); // Remove followedIssueIds from dependencies
 
     // Fetch issues for a specific version (for Others section)
     const fetchVersionIssues = useCallback(async (versionId: number) => {
