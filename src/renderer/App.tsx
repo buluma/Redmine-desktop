@@ -1963,7 +1963,8 @@ const App: React.FC = () => {
                         onClick={() => setShowSettings(true)}
                         style={{ margin: 0, padding: 0, flex: 1, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--input-bg)', borderRadius: 8, fontSize: 13 }}
                     >
-                        ⚙️ Settings
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: 6 }}><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        Settings
                     </div>
                 </div>
             </aside>
@@ -1978,9 +1979,6 @@ const App: React.FC = () => {
 
             {/* List */}
             <section className="issue-list-pane" style={{ width: listWidth, minWidth: 300, maxWidth: 800, flexShrink: 0 }}>
-                <div style={{ padding: '40px 15px 10px', display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                    </div>
                 <div style={{ padding: '40px 15px 10px', display: 'flex', gap: 10, alignItems: 'center' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
                         <span style={{ position: 'absolute', left: 10, top: '48%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', color: vm.searchMode === 'remote' ? 'var(--accent-color)' : 'var(--text-secondary)' }}>
@@ -2096,8 +2094,6 @@ const App: React.FC = () => {
                                 }}
                             >×</button>
                         )}
-                    </div>
-                </div>
                     </div>
                 </div>
                 <div style={{ padding: '0 15px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -2441,17 +2437,30 @@ const App: React.FC = () => {
                                         }}
                                         title="复制链接"
                                         className="icon-button"
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, opacity: 0.6, padding: 2, display: 'flex', alignItems: 'center' }}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, opacity: 0.6, padding: 2, display: 'flex', alignItems: 'center', color: 'var(--text-primary)' }}
                                     >
-                                        🔗
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const text = `#${selectedIssue.id}: ${selectedIssue.subject}`;
+                                            navigator.clipboard.writeText(text);
+                                        }}
+                                        title="复制 ID+标题 (#id: title)"
+                                        className="icon-button"
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, opacity: 0.6, padding: 2, display: 'flex', alignItems: 'center', color: 'var(--text-primary)' }}
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M0 6.75C0 5.784.784 5 1.75 5h1.5a.75.75 0 0 1 0 1.5h-1.5a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-1.5a.75.75 0 0 1 1.5 0v1.5A1.75 1.75 0 0 1 9.25 16h-7.5A1.75 1.75 0 0 1 0 14.25Z"></path><path d="M5 1.75C5 .784 5.784 0 6.75 0h7.5C15.216 0 16 .784 16 1.75v7.5A1.75 1.75 0 0 1 14.25 11h-7.5A1.75 1.75 0 0 1 5 9.25Zm1.75-.25a.25.25 0 0 0-.25.25v7.5c0 .138.112.25.25.25h7.5a.25.25 0 0 0 .25-.25v-7.5a.25.25 0 0 0-.25-.25Z"></path></svg>
                                     </button>
                                 </div>
                                 <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                                     <button
                                         onClick={() => setDeleteIssueConfirm(selectedIssue.id)}
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 14 }}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff453a', fontSize: 14, display: 'flex', alignItems: 'center' }}
                                         title="删除任务"
-                                    >🗑️</button>
+                                    >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                                    </button>
                                 </div>
                             </div>
                             {/* Title row */}
@@ -2653,8 +2662,10 @@ const App: React.FC = () => {
                                     {!editingDescription && (
                                         <button
                                             onClick={() => { setEditDescriptionValue(selectedIssue.description || ''); setEditingDescription(true); }}
-                                            style={{ background: 'none', border: 'none', color: '#0c66ff', fontSize: 18, cursor: 'pointer' }}
-                                        >✎</button>
+                                            style={{ background: 'none', border: 'none', color: '#0c66ff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                        >
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                        </button>
                                     )}
                                 </div>
                                 {editingDescription ? (
