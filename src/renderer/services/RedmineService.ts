@@ -79,6 +79,64 @@ export class RedmineService {
         await this.axios.delete(`issues/${issueId}.json`);
     }
 
+    // 远程搜索 API
+    async searchIssues(query: string, params?: {
+        project_id?: number;
+        limit?: number;
+        offset?: number;
+    }): Promise<{ issues: Issue[]; total_count: number }> {
+        // 使用 Redmine 的 search.json 端点进行全局搜索
+        // 返回的结果格式和 issues.json 不同，需要提取 issue IDs 然后获取详情
+        const searchParams: Record<string, any> = {
+            q: query,
+            issues: 1,  // 只搜索 issues
+            limit: params?.limit || 25,
+            offset: params?.offset || 0
+        };
+        if (params?.project_id) {
+            searchParams.scope = 'subprojects';  // 包含子项目
+        }
+
+        const response = await this.axios.get('search.json', { params: searchParams });
+
+        // search.json 返回的结果结构
+        // { results: [{ id, title, type, url, description, datetime }], total_count, offset, limit }
+        const searchResults = response.data.results || [];
+        const totalCount = response.data.total_count || 0;
+
+        // 过滤出 issues 类型的结果并提取 ID (URL 格式: /issues/12345)
+        const issueIds: number[] = [];
+        for (const result of searchResults) {
+            if (result.type === 'issue' && result.url) {
+                const match = result.url.match(/\/issues\/(\d+)/);
+                if (match) {
+                    issueIds.push(parseInt(match[1], 10));
+                }
+            }
+        }
+
+        // 如果没有搜索结果，返回空数组
+        if (issueIds.length === 0) {
+            return { issues: [], total_count: totalCount };
+        }
+
+        // 使用 issues.json 的 issue_id 参数批量获取 issue 详情
+        // 这比逐个请求效率更高
+        const issueIdStr = issueIds.join(',');
+        const issuesResponse = await this.axios.get('issues.json', {
+            params: {
+                issue_id: issueIdStr,
+                status_id: '*',  // 包含所有状态
+                limit: issueIds.length
+            }
+        });
+
+        return {
+            issues: issuesResponse.data.issues || [],
+            total_count: totalCount
+        };
+    }
+
     // 关注者 API
     async addWatcher(issueId: number, userId: number): Promise<void> {
         await this.axios.post(`issues/${issueId}/watchers.json`, { user_id: userId });
