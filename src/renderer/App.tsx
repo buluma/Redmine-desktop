@@ -522,6 +522,175 @@ const IssueListContent = React.memo(({
     );
 });
 
+// 远程搜索结果列表组件
+const RemoteSearchResults = React.memo(({
+    results,
+    isSearching,
+    searchQuery,
+    totalCount,
+    selectedIssueId,
+    onSelectIssue,
+    vm,
+    handleUpdateStatus,
+    handleUpdatePriority,
+    handleUpdateVersion,
+    handleUpdateAssignee,
+    stableStatusList,
+    stablePriorityList,
+    stableVersionListCache,
+    stableGroupedMemberCache
+}: {
+    results: Issue[],
+    isSearching: boolean,
+    searchQuery: string,
+    totalCount: number,
+    selectedIssueId: number | null,
+    onSelectIssue: (id: number, sourceKey: string) => void,
+    vm: any,
+    handleUpdateStatus: (id: number, statusId: number) => void,
+    handleUpdatePriority: (id: number, priorityId: number) => void,
+    handleUpdateVersion: (id: number, versionId: string) => void,
+    handleUpdateAssignee: (id: number, assigneeId: string) => void,
+    stableStatusList: any[],
+    stablePriorityList: any[],
+    stableVersionListCache: Record<number, any[]>,
+    stableGroupedMemberCache: Record<number | string, any>
+}) => {
+    const listRef = useRef<HTMLDivElement>(null);
+    const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({ opacity: 0 });
+
+    // 更新选中指示框位置
+    useEffect(() => {
+        if (selectedIssueId && listRef.current) {
+            const el = listRef.current.querySelector(`[data-issue-id="${selectedIssueId}"]`) as HTMLElement;
+            if (el) {
+                setIndicatorStyle({
+                    top: el.offsetTop,
+                    height: el.offsetHeight,
+                    opacity: 1
+                });
+            } else {
+                setIndicatorStyle({ opacity: 0 });
+            }
+        } else {
+            setIndicatorStyle({ opacity: 0 });
+        }
+    }, [selectedIssueId, results]);
+
+    if (!searchQuery.trim()) {
+        return (
+            <div style={{ textAlign: 'center', marginTop: 80, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <div style={{ marginBottom: 10 }}>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+                    </svg>
+                </div>
+                输入关键词在服务器上搜索任务<br />
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>支持搜索任务标题、描述等内容</span>
+            </div>
+        );
+    }
+
+    if (isSearching) {
+        return (
+            <div style={{ textAlign: 'center', marginTop: 80, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <div style={{ marginBottom: 10 }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                        <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12"></circle>
+                    </svg>
+                </div>
+                正在远程搜索...
+            </div>
+        );
+    }
+
+    if (results.length === 0) {
+        return (
+            <div style={{ textAlign: 'center', marginTop: 80, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <div style={{ marginBottom: 10 }}>🔍</div>
+                未找到匹配 "{searchQuery}" 的任务<br />
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>尝试使用不同的关键词</span>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ padding: '0 0 20px', position: 'relative' }} ref={listRef}>
+            {/* 选中指示框 */}
+            <div className="selection-indicator" style={indicatorStyle} />
+
+            {/* 搜索结果头部信息 */}
+            <div style={{
+                padding: '10px 15px',
+                fontSize: 11,
+                color: 'var(--text-secondary)',
+                borderBottom: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                position: 'sticky',
+                top: 0,
+                zIndex: 10
+            }}>
+                找到 {totalCount} 个结果，显示前 {results.length} 个
+            </div>
+
+            {results.map((issue: Issue) => (
+                <div key={issue.id}>
+                    {/* 项目和版本信息标签 */}
+                    <div style={{
+                        padding: '6px 15px 2px',
+                        fontSize: 10,
+                        color: 'var(--text-tertiary)',
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'center'
+                    }}>
+                        <span style={{
+                            background: 'rgba(12, 102, 255, 0.1)',
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            color: 'var(--accent-color)'
+                        }}>
+                            {issue.project?.name || '未知项目'}
+                        </span>
+                        {issue.fixed_version && (
+                            <span style={{
+                                background: 'rgba(48, 209, 88, 0.1)',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                color: '#30d158'
+                            }}>
+                                {issue.fixed_version.name}
+                            </span>
+                        )}
+                    </div>
+                    <MemoIssueItem
+                        issue={issue}
+                        isSelected={selectedIssueId === issue.id}
+                        onSelect={(id) => onSelectIssue(id, 'remote-search')}
+                        onUpdateStatus={handleUpdateStatus}
+                        onUpdatePriority={handleUpdatePriority}
+                        onUpdateVersion={handleUpdateVersion}
+                        onUpdateAssignee={handleUpdateAssignee}
+                        statusList={stableStatusList}
+                        priorityList={stablePriorityList}
+                        versionList={stableVersionListCache[issue.project?.id || -1] || []}
+                        groupedMembers={stableGroupedMemberCache[issue.project?.id || -1] || stableGroupedMemberCache['global']}
+                        isFollowed={vm.followedIssueIds.has(issue.id)}
+                        onToggleFollow={async (id: number) => {
+                            const followed = vm.followedIssueIds.has(id);
+                            if (followed) {
+                                await vm.removeWatcher(id, vm.currentUser!.id);
+                            } else {
+                                await vm.addWatcher(id, vm.currentUser!.id);
+                            }
+                        }}
+                    />
+                </div>
+            ))}
+        </div>
+    );
+});
+
 const App: React.FC = () => {
     const vm = useAppViewModel();
 
@@ -1062,13 +1231,20 @@ const App: React.FC = () => {
     };
 
     const selectedIssue = useMemo(() => {
-        const newIssue = vm.allIssues.find((i: Issue) => i.id === selectedIssueId);
+        // 先从 allIssues 中查找
+        let newIssue = vm.allIssues.find((i: Issue) => i.id === selectedIssueId);
+
+        // 如果在 allIssues 中找不到，尝试从远程搜索结果中查找
+        if (!newIssue && vm.searchMode === 'remote' && vm.remoteSearchResults.length > 0) {
+            newIssue = vm.remoteSearchResults.find((i: Issue) => i.id === selectedIssueId);
+        }
+
         // Only update cache if data actually changed
         if (!issueEquals(selectedIssueCacheRef.current, newIssue)) {
             selectedIssueCacheRef.current = newIssue;
         }
         return selectedIssueCacheRef.current;
-    }, [vm.allIssues, selectedIssueId]);
+    }, [vm.allIssues, vm.remoteSearchResults, vm.searchMode, selectedIssueId]);
 
     const processedDescription = useMemo(() => {
         if (!selectedIssue) return '';
@@ -1805,19 +1981,136 @@ const App: React.FC = () => {
             <section className="issue-list-pane" style={{ width: listWidth, minWidth: 300, maxWidth: 800, flexShrink: 0 }}>
                 <div style={{ padding: '40px 15px 10px', display: 'flex', gap: 10, alignItems: 'center' }}>
                     <div style={{ flex: 1, position: 'relative' }}>
-                        <span style={{ position: 'absolute', left: 10, top: '48%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', color: 'var(--text-secondary)' }}>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <span style={{ position: 'absolute', left: 10, top: '48%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', color: vm.searchMode === 'remote' ? 'var(--accent-color)' : 'var(--text-secondary)' }}>
+                            {vm.isSearching ? (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                                    <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12"></circle>
+                                </svg>
+                            ) : vm.searchMode === 'remote' ? (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+                                </svg>
+                            ) : (
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                            )}
                         </span>
-                        <input type="text" placeholder="Search" value={vm.searchQuery} onChange={e => vm.setSearchQuery(e.target.value)} style={{ width: '100%', padding: '10px 10px 10px 35px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', borderRadius: 8, color: 'var(--text-primary)' }} />
+                        <input
+                            type="text"
+                            placeholder={vm.searchMode === 'remote' ? "远程搜索..." : "本地搜索"}
+                            value={vm.searchQuery}
+                            onChange={e => vm.setSearchQuery(e.target.value)}
+                            onKeyDown={e => {
+                                // ESC 键清除搜索并返回本地模式
+                                if (e.key === 'Escape') {
+                                    vm.setSearchQuery('');
+                                    vm.setSearchMode('local');
+                                    (e.target as HTMLInputElement).blur();
+                                }
+                            }}
+                            style={{
+                                width: '100%',
+                                padding: (vm.searchQuery || vm.searchMode === 'remote') ? '10px 115px 10px 35px' : '10px 80px 10px 35px',
+                                background: 'var(--input-bg)',
+                                border: vm.searchMode === 'remote' ? '1px solid var(--accent-color)' : '1px solid var(--input-border)',
+                                borderRadius: 8,
+                                color: 'var(--text-primary)'
+                            }}
+                        />
+                        {/* 搜索模式切换按钮 */}
+                        <div style={{
+                            position: 'absolute',
+                            right: 8,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            display: 'flex',
+                            gap: 2,
+                            background: 'var(--bg-secondary)',
+                            borderRadius: 6,
+                            padding: 2
+                        }}>
+                            <button
+                                onClick={() => vm.setSearchMode('local')}
+                                title="本地搜索 (在已加载的任务中搜索)"
+                                style={{
+                                    padding: '4px 8px',
+                                    fontSize: 10,
+                                    background: vm.searchMode === 'local' ? 'var(--accent-color)' : 'transparent',
+                                    color: vm.searchMode === 'local' ? 'white' : 'var(--text-secondary)',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    cursor: 'pointer',
+                                    fontWeight: 500,
+                                    transition: 'all 0.2s'
+                                }}
+                            >本地</button>
+                            <button
+                                onClick={() => vm.setSearchMode('remote')}
+                                title="远程搜索 (通过 API 在服务器上搜索)"
+                                style={{
+                                    padding: '4px 8px',
+                                    fontSize: 10,
+                                    background: vm.searchMode === 'remote' ? 'var(--accent-color)' : 'transparent',
+                                    color: vm.searchMode === 'remote' ? 'white' : 'var(--text-secondary)',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    cursor: 'pointer',
+                                    fontWeight: 500,
+                                    transition: 'all 0.2s'
+                                }}
+                            >远程</button>
+                        </div>
+                        {/* 清除搜索按钮 - 当有搜索内容或处于远程模式时显示 */}
+                        {(vm.searchQuery || vm.searchMode === 'remote') && (
+                            <button
+                                onClick={() => {
+                                    vm.setSearchQuery('');
+                                    vm.setSearchMode('local');
+                                }}
+                                title="清除搜索，返回版本视图"
+                                style={{
+                                    position: 'absolute',
+                                    right: 88,
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'rgba(255,69,58,0.1)',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    width: 20,
+                                    height: 20,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer',
+                                    color: '#ff453a',
+                                    fontSize: 12,
+                                    fontWeight: 'bold',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={e => {
+                                    e.currentTarget.style.background = 'rgba(255,69,58,0.2)';
+                                }}
+                                onMouseLeave={e => {
+                                    e.currentTarget.style.background = 'rgba(255,69,58,0.1)';
+                                }}
+                            >×</button>
+                        )}
                     </div>
                 </div>
                 <div style={{ padding: '0 15px 10px', display: 'flex', flexDirection: 'column', gap: 5 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, fontSize: 11, color: '#444' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span>
-                                {vm.isLoading
-                                    ? '⏳ 正在拉取...'
-                                    : `✅ API 已加载: ${vm.allIssues.length} | 结果显示: ${vm.groupedIssues.sortedKeys.reduce((acc, k) => acc + vm.groupedIssues.groups[k].length, 0)}${vm.isBackgroundRefreshing ? ' | 🔄 后台刷新中...' : ''}`}
+                                {vm.searchMode === 'remote' ? (
+                                    vm.isSearching
+                                        ? '🔍 正在远程搜索...'
+                                        : vm.searchQuery.trim()
+                                            ? `☁️ 远程搜索结果: ${vm.remoteSearchResults.length} / ${vm.remoteSearchTotalCount} 条`
+                                            : '☁️ 远程搜索模式 (输入关键词开始搜索)'
+                                ) : (
+                                    vm.isLoading
+                                        ? '⏳ 正在拉取...'
+                                        : `✅ API 已加载: ${vm.allIssues.length} | 结果显示: ${vm.groupedIssues.sortedKeys.reduce((acc, k) => acc + vm.groupedIssues.groups[k].length, 0)}${vm.isBackgroundRefreshing ? ' | 🔄 后台刷新中...' : ''}`
+                                )}
                             </span>
                             <button
                                 onClick={async () => {
@@ -2020,25 +2313,43 @@ const App: React.FC = () => {
                 <div
                     style={{ flex: 1, position: 'relative', overflow: 'hidden' }}
                 >
-                    <div className="issue-list-content" style={{ width: '100%', height: '100%' }}>
-                        {/* Render issues using persistent tabs logic */}
-
-                        <TabbedIssueList
-                            currentKey={currentTabKey}
-                            versionViewData={vm.versionViewData}
-                            vm={vm}
-                            // Passing props needed for rendering items
-                            selectedIssueState={selectedIssueState}
-                            handleSelectIssue={handleSelectIssue}
-                            handleUpdateStatus={handleUpdateStatus}
-                            handleUpdatePriority={handleUpdatePriority}
-                            handleUpdateVersion={handleUpdateVersion}
-                            handleUpdateAssignee={handleUpdateAssignee}
-                            stableStatusList={stableStatusList}
-                            stablePriorityList={stablePriorityList}
-                            stableVersionListCache={stableVersionListCache}
-                            stableGroupedMemberCache={stableGroupedMemberCache}
-                        />
+                    <div className="issue-list-content" style={{ width: '100%', height: '100%', overflowY: vm.searchMode === 'remote' ? 'auto' : 'hidden' }}>
+                        {/* 根据搜索模式显示不同的列表 */}
+                        {vm.searchMode === 'remote' ? (
+                            <RemoteSearchResults
+                                results={vm.remoteSearchResults}
+                                isSearching={vm.isSearching}
+                                searchQuery={vm.searchQuery}
+                                totalCount={vm.remoteSearchTotalCount}
+                                selectedIssueId={selectedIssueId}
+                                onSelectIssue={handleSelectIssue}
+                                vm={vm}
+                                handleUpdateStatus={handleUpdateStatus}
+                                handleUpdatePriority={handleUpdatePriority}
+                                handleUpdateVersion={handleUpdateVersion}
+                                handleUpdateAssignee={handleUpdateAssignee}
+                                stableStatusList={stableStatusList}
+                                stablePriorityList={stablePriorityList}
+                                stableVersionListCache={stableVersionListCache}
+                                stableGroupedMemberCache={stableGroupedMemberCache}
+                            />
+                        ) : (
+                            <TabbedIssueList
+                                currentKey={currentTabKey}
+                                versionViewData={vm.versionViewData}
+                                vm={vm}
+                                selectedIssueState={selectedIssueState}
+                                handleSelectIssue={handleSelectIssue}
+                                handleUpdateStatus={handleUpdateStatus}
+                                handleUpdatePriority={handleUpdatePriority}
+                                handleUpdateVersion={handleUpdateVersion}
+                                handleUpdateAssignee={handleUpdateAssignee}
+                                stableStatusList={stableStatusList}
+                                stablePriorityList={stablePriorityList}
+                                stableVersionListCache={stableVersionListCache}
+                                stableGroupedMemberCache={stableGroupedMemberCache}
+                            />
+                        )}
                     </div>
                 </div>
 

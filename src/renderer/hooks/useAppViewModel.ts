@@ -66,6 +66,10 @@ export function useAppViewModel() {
     });
 
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchMode, setSearchMode] = useState<'local' | 'remote'>('local');
+    const [remoteSearchResults, setRemoteSearchResults] = useState<Issue[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [remoteSearchTotalCount, setRemoteSearchTotalCount] = useState(0);
     const [selectedAssigneeId, setSelectedAssigneeId] = useState<number | null>(() => {
         const saved = localStorage.getItem('lastSelectedAssigneeId');
         return saved ? parseInt(saved, 10) : null;
@@ -105,6 +109,9 @@ export function useAppViewModel() {
     const [isLoading, setIsLoading] = useState(false);
     const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+    // 远程搜索防抖计时器
+    const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const service = useMemo(() => {
         if (redmineURL && redmineAPIKey) {
@@ -661,6 +668,64 @@ export function useAppViewModel() {
         }
     }, [service]);
 
+    // 远程搜索函数
+    const performRemoteSearch = useCallback(async (query: string) => {
+        if (!service || !query.trim()) {
+            setRemoteSearchResults([]);
+            setRemoteSearchTotalCount(0);
+            return;
+        }
+
+        setIsSearching(true);
+        try {
+            const { issues, total_count } = await service.searchIssues(query.trim(), {
+                limit: 50
+            });
+            setRemoteSearchResults(issues);
+            setRemoteSearchTotalCount(total_count);
+            setErrorMessage(null);
+        } catch (e: any) {
+            setErrorMessage(`远程搜索失败: ${e.message}`);
+            setRemoteSearchResults([]);
+            setRemoteSearchTotalCount(0);
+        } finally {
+            setIsSearching(false);
+        }
+    }, [service]);
+
+    // 当搜索模式为远程且搜索词变化时，执行远程搜索（带防抖）
+    useEffect(() => {
+        if (searchMode !== 'remote') {
+            // 切换回本地模式时，清除远程搜索结果
+            setRemoteSearchResults([]);
+            setRemoteSearchTotalCount(0);
+            return;
+        }
+
+        // 清除之前的定时器
+        if (searchTimeoutRef.current) {
+            clearTimeout(searchTimeoutRef.current);
+        }
+
+        if (!searchQuery.trim()) {
+            setRemoteSearchResults([]);
+            setRemoteSearchTotalCount(0);
+            setIsSearching(false);
+            return;
+        }
+
+        // 防抖：500ms 后执行搜索
+        searchTimeoutRef.current = setTimeout(() => {
+            performRemoteSearch(searchQuery);
+        }, 500);
+
+        return () => {
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
+    }, [searchQuery, searchMode, performRemoteSearch]);
+
     const addWatcher = async (issueId: number, userId: number) => {
         if (!service) return;
         try {
@@ -1174,6 +1239,12 @@ export function useAppViewModel() {
         setGroupByMode,
         searchQuery,
         setSearchQuery,
+        searchMode,
+        setSearchMode,
+        remoteSearchResults,
+        remoteSearchTotalCount,
+        isSearching,
+        performRemoteSearch,
         isLoading,
         isBackgroundRefreshing,
         errorMessage,
