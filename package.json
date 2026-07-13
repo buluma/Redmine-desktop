@@ -47,6 +47,9 @@
     "vite-plugin-electron-renderer": "^1.0.0",
     "wait-on": "^7.2.0"
   },
+  "overrides": {
+    "dompurify": "^3.4.12"
+  },
   "build": {
     "appId": "com.redmine.cross",
     "productName": "Redmine",
