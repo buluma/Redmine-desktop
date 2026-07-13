@@ -37,7 +37,7 @@ export type UpdateStatus =
 
 export interface AutoUpdateSettings {
     enabled: boolean;
-    interval: number;  // 小时
+    interval: number;  // Hours
 }
 
 export interface UpdaterAPI {

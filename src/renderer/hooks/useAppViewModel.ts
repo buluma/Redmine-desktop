@@ -78,7 +78,7 @@ export function useAppViewModel() {
         const saved = localStorage.getItem('groupByMode');
         return saved === 'assignee' ? 'assignee' : 'status';
     });
-    // 协助者过滤
+    // Assigned watcher filter
     const [selectedAssignedWatcherIds, setSelectedAssignedWatcherIds] = useState<Set<number>>(() => {
         const saved = localStorage.getItem('selectedAssignedWatcherIds');
         return saved ? new Set(JSON.parse(saved)) : new Set();
@@ -110,7 +110,7 @@ export function useAppViewModel() {
     const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-    // 远程搜索防抖计时器
+    // Remote search debounce timer
     const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const service = useMemo(() => {
@@ -227,19 +227,20 @@ export function useAppViewModel() {
 
             console.log(`[refreshIssues] Fetched ${allFetchedIssues.length} issues from ${activeVersionArray.length} active versions`);
 
-            // 更新issues列表 - 合并活跃版本的issues，保留旧issue的详情字段（attachments, journals等）
+            // Update issues list - merge active version issues, preserve old issue detail fields (attachments, journals, etc.)
             setAllIssues(prev => {
                 const refreshedVersionIds = new Set(activeVersionArray);
                 const fetchedIssueMap = new Map(allFetchedIssues.map(i => [i.id, i]));
 
-                // 1. 保留那些不属于刚刚刷新的版本的 issue
+                // 1. Preserve issues that don't belong to the version that was just refreshed
                 const preservedIssues = prev.filter(i =>
                     !i.fixed_version?.id || !refreshedVersionIds.has(i.fixed_version.id)
                 );
 
-                // 2. 对于属于已刷新版本的 issue，只有在 fetchedIssueMap 中存在的才保留（即合并更新），不存在的说明已删除或移出版本
-                // 但要注意：我们不能简单 filter，因为 preservedIssues 已经移除了所有活跃版本的 issue。
-                // 我们应该从 prev 中找出活跃版本的 issue，如果它们在 fetchedIssueMap 中，则进行合并更新。
+                // 2. For issues belonging to the refreshed version, only keep those present in fetchedIssueMap (merge update)
+                //    Those not present have been deleted or removed from the version.
+                //    Note: we can't simply filter because preservedIssues already removed all active version issues.
+                //    We should find active version issues from prev and merge them if they exist in fetchedIssueMap.
                 const existingActiveIssues = prev.filter(i =>
                     i.fixed_version?.id && refreshedVersionIds.has(i.fixed_version.id)
                 );
@@ -254,12 +255,12 @@ export function useAppViewModel() {
                     })
                     .map(oldIssue => {
                         const newIssue = fetchedIssueMap.get(oldIssue.id)!;
-                        // 简单比较 updated_on 检查是否有变更
+                        // Simple comparison of updated_on to check for changes
                         if (newIssue.updated_on !== oldIssue.updated_on) {
                             hasChanges = true;
                         }
 
-                        // 智能合并：保留附件、日志、关注者等可能只有详情接口才有的字段
+                        // Smart merge: preserve attachments, journals, watchers, etc. that may only come from detail endpoint
                         return {
                             ...newIssue,
                             attachments: newIssue.attachments || oldIssue.attachments,
@@ -269,7 +270,7 @@ export function useAppViewModel() {
                         };
                     });
 
-                // 3. 找出全新的 issue（在 fetchedIssueMap 中但不在 existingActiveIssues 中）
+                // 3. Find brand new issues (in fetchedIssueMap but not in existingActiveIssues)
                 const activeIssueIds = new Set(existingActiveIssues.map(i => i.id));
                 const brandNewIssues = allFetchedIssues.filter(i => !activeIssueIds.has(i.id));
 
@@ -278,16 +279,16 @@ export function useAppViewModel() {
                 }
 
                 if (!hasChanges) {
-                    // 如果没有任何变化（没有新增，没有删除，更新时间都一致），则不产生新对象引用，这能避免大量无谓的重渲染
+                    // If no changes (no additions, no deletions, all update times match), don't create new object references to avoid unnecessary re-renders
                     console.log('[refreshIssues] No changes detected in active versions.');
                     return prev;
                 }
 
                 const newIssuesList = [...preservedIssues, ...mergedActiveIssues, ...brandNewIssues];
 
-                console.log(`[refreshIssues] 更新后 issues 总数: ${newIssuesList.length} (原: ${prev.length})`);
+                console.log(`[refreshIssues] Total issues after update: ${newIssuesList.length} (was: ${prev.length})`);
 
-                // 保存到localStorage缓存
+                // Save to localStorage cache
                 try {
                     localStorage.setItem('cachedIssues', JSON.stringify(newIssuesList));
                 } catch (e) {
@@ -319,8 +320,8 @@ export function useAppViewModel() {
                     offset += limit;
                 }
 
-                // 同时获取指派给我的任务，确保它们在被删除或移动时能被正确同步
-                // 特别是那些没有固定版本的任务
+                // Also fetch tasks assigned to me, ensuring they are synced correctly when deleted or moved
+                // Especially those without a fixed version
                 offset = 0;
                 while (true) {
                     const { issues, total_count } = await service.fetchIssues({
@@ -351,15 +352,15 @@ export function useAppViewModel() {
                     return followedIds;
                 });
 
-                // 合并关注和指派的任务到 allIssues，并清理已失效的缓存
+                // Merge watched and assigned issues into allIssues, and clean up stale cache
                 setAllIssues(prev => {
                     const refreshedVersionIds = new Set(activeVersionIds);
                     const refreshedFollowedAndAssignedIds = new Set(followedAndAssignedIssuesList.map(i => i.id));
                     const issueMap = new Map(prev.map(i => [i.id, i]));
                     let changed = false;
 
-                    // 清理逻辑：如果一个 Issue 原本是“关注”或“指派”状态，但现在不在远程返回的列表中，
-                    // 且它也不属于任何当前活跃的版本，说明它已被删除或不再相关，应从缓存移除。
+                    // Cleanup logic: if an Issue was originally "watched" or "assigned" but is no longer in the remote response,
+                    // and it doesn't belong to any active version, it has been deleted or is no longer relevant - remove from cache.
                     for (const issue of prev) {
                         const wasFollowed = followedIssueIdsRef.current.has(issue.id);
                         const wasAssigned = issue.assigned_to?.id === currentUser.id;
@@ -668,7 +669,7 @@ export function useAppViewModel() {
         }
     }, [service]);
 
-    // 远程搜索函数
+    // Remote search function
     const performRemoteSearch = useCallback(async (query: string) => {
         if (!service || !query.trim()) {
             setRemoteSearchResults([]);
@@ -685,7 +686,7 @@ export function useAppViewModel() {
             setRemoteSearchTotalCount(total_count);
             setErrorMessage(null);
         } catch (e: any) {
-            setErrorMessage(`远程搜索失败: ${e.message}`);
+            setErrorMessage(`Remote search failed: ${e.message}`);
             setRemoteSearchResults([]);
             setRemoteSearchTotalCount(0);
         } finally {
@@ -693,16 +694,16 @@ export function useAppViewModel() {
         }
     }, [service]);
 
-    // 当搜索模式为远程且搜索词变化时，执行远程搜索（带防抖）
+    // When search mode is remote and search query changes, execute remote search (with debounce)
     useEffect(() => {
         if (searchMode !== 'remote') {
-            // 切换回本地模式时，清除远程搜索结果
+            // Switching back to local mode, clear remote search results
             setRemoteSearchResults([]);
             setRemoteSearchTotalCount(0);
             return;
         }
 
-        // 清除之前的定时器
+        // Clear previous timer
         if (searchTimeoutRef.current) {
             clearTimeout(searchTimeoutRef.current);
         }
@@ -714,7 +715,7 @@ export function useAppViewModel() {
             return;
         }
 
-        // 防抖：500ms 后执行搜索
+        // Debounce: execute search after 500ms
         searchTimeoutRef.current = setTimeout(() => {
             performRemoteSearch(searchQuery);
         }, 500);
@@ -758,30 +759,30 @@ export function useAppViewModel() {
         }
     };
 
-    // 协助者管理（通过自定义字段）
+    // Assigned watcher management (via custom field)
     const addAssignedWatcher = async (issue: Issue, userId: number) => {
         if (!service) return;
         try {
-            // 获取当前协助者
+            // Get current assigned watchers
             const currentAssistants = getAssignedWatchers(issue);
             const assistantIds = currentAssistants.map(a => a.id);
 
-            // 如果已存在则不添加
+            // Skip if already exists
             if (assistantIds.includes(userId)) {
                 return;
             }
 
-            // 添加新协助者
+            // Add new assigned watcher
             assistantIds.push(userId);
 
-            // 获取自定义字段ID
+            // Get custom field ID
             const field = getAssignedWatchersField(issue);
             if (!field) {
-                setErrorMessage('协助者自定义字段未找到');
+                setErrorMessage('Assigned watchers custom field not found');
                 return;
             }
 
-            // 更新 Issue
+            // Update Issue
             const customFieldsUpdate = createAssignedWatchersUpdate(field.id, assistantIds);
             await service.updateIssue(issue.id, { custom_fields: customFieldsUpdate });
             await fetchIssueDetail(issue.id);
@@ -793,18 +794,18 @@ export function useAppViewModel() {
     const removeAssignedWatcher = async (issue: Issue, userId: number) => {
         if (!service) return;
         try {
-            // 获取当前协助者
+            // Get current assigned watchers
             const currentAssistants = getAssignedWatchers(issue);
             const assistantIds = currentAssistants.map(a => a.id).filter(id => id !== userId);
 
-            // 获取自定义字段ID
+            // Get custom field ID
             const field = getAssignedWatchersField(issue);
             if (!field) {
-                setErrorMessage('协助者自定义字段未找到');
+                setErrorMessage('Assigned watchers custom field not found');
                 return;
             }
 
-            // 更新 Issue
+            // Update Issue
             const customFieldsUpdate = createAssignedWatchersUpdate(field.id, assistantIds);
             await service.updateIssue(issue.id, { custom_fields: customFieldsUpdate });
             await fetchIssueDetail(issue.id);
@@ -1084,7 +1085,7 @@ export function useAppViewModel() {
 
             if (groupByMode === 'assignee') {
                 issues.forEach(i => {
-                    const assigneeName = i.assigned_to?.name || '未指派';
+                    const assigneeName = i.assigned_to?.name || 'Unassigned';
                     if (!groups[assigneeName]) {
                         groups[assigneeName] = [];
                         keys.push(assigneeName);
@@ -1092,8 +1093,8 @@ export function useAppViewModel() {
                     groups[assigneeName].push(i);
                 });
                 keys.sort((a, b) => {
-                    if (a === '未指派') return 1;
-                    if (b === '未指派') return -1;
+                    if (a === 'Unassigned') return 1;
+                    if (b === 'Unassigned') return -1;
                     return a.localeCompare(b);
                 });
             } else {
@@ -1162,7 +1163,7 @@ export function useAppViewModel() {
         allIssues.forEach(i => {
             addUser(i.assigned_to);
             addUser(i.author);
-            // 从自定义字段中获取协助者
+            // Get assigned watchers from custom fields
             const assignedWatchers = getAssignedWatchers(i);
             assignedWatchers.forEach(aw => addUser(aw));
         });
@@ -1193,7 +1194,7 @@ export function useAppViewModel() {
                 });
             } catch (e: any) {
                 console.error(`[openIssueById] Failed to fetch issue ${issueId}:`, e);
-                setErrorMessage(`无法获取 Issue #${issueId}: ${e.message}`);
+                setErrorMessage(`Failed to fetch Issue #${issueId}: ${e.message}`);
                 return null;
             }
         }
@@ -1203,7 +1204,7 @@ export function useAppViewModel() {
         // Ensure the issue has project information
         if (!issue.project) {
             console.error(`[openIssueById] Issue ${issueId} has no project information`);
-            setErrorMessage(`Issue #${issueId} 缺少项目信息`);
+            setErrorMessage(`Issue #${issueId} is missing project information`);
             return null;
         }
 
@@ -1252,10 +1253,10 @@ export function useAppViewModel() {
         versionViewData, // Export the full map for advanced UI usage
         updateIssue,
         addNote,
-        addWatcher,         // 关注者
-        removeWatcher,      // 关注者
-        addAssignedWatcher,     // 协助者
-        removeAssignedWatcher,  // 协助者
+        addWatcher,         // Watchers
+        removeWatcher,      // Watchers
+        addAssignedWatcher,     // Assigned watchers
+        removeAssignedWatcher,  // Assigned watchers
         createIssue,
         refreshData: refreshIssues,
         redmineURL,

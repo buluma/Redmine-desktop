@@ -1,10 +1,10 @@
 import { Issue, CustomField } from '../models/redmine';
 
-// 协助者自定义字段的名称（请根据您的 Redmine 配置调整）
+// Name of the assigned watchers custom field (adjust according to your Redmine configuration)
 const ASSIGNED_WATCHERS_FIELD_NAME = '协助者';
 
 /**
- * 从 Issue 的自定义字段中获取协助者列表
+ * Get assigned watchers list from Issue custom fields
  */
 export function getAssignedWatchers(issue: Issue): { id: number; name: string }[] {
     if (!issue.custom_fields) return [];
@@ -14,11 +14,11 @@ export function getAssignedWatchers(issue: Issue): { id: number; name: string }[
         return [];
     }
 
-    // 自定义字段的 value 是字符串ID数组
+    // Custom field value is an array of string IDs
     if (Array.isArray(field.value)) {
         return field.value.map((v: any) => ({
             id: typeof v === 'object' ? parseInt(v.id) : parseInt(v),
-            name: '' // 名字需要在UI层从globalMembers查找
+            name: '' // Name needs to be looked up from globalMembers in the UI layer
         })).filter(u => u.id && !isNaN(u.id));
     }
 
@@ -26,7 +26,7 @@ export function getAssignedWatchers(issue: Issue): { id: number; name: string }[
 }
 
 /**
- * 从 Issue 的自定义字段中获取协助者的自定义字段对象
+ * Get the assigned watchers custom field object from Issue custom fields
  */
 export function getAssignedWatchersField(issue: Issue): CustomField | undefined {
     if (!issue.custom_fields) return undefined;
@@ -34,10 +34,10 @@ export function getAssignedWatchersField(issue: Issue): CustomField | undefined 
 }
 
 /**
- * 创建用于更新协助者的自定义字段数据
- * @param fieldId 自定义字段ID
- * @param assistantIds 协助者的用户ID数组
- * @returns 用于 updateIssue API 的 custom_fields 数组
+ * Create custom field data for updating assigned watchers
+ * @param fieldId Custom field ID
+ * @param assistantIds Array of assigned watcher user IDs
+ * @returns custom_fields array for updateIssue API
  */
 export function createAssignedWatchersUpdate(fieldId: number, assistantIds: number[]): any[] {
     return [{

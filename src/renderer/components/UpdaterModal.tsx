@@ -70,9 +70,9 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
         setDownloadProgress(null);
         try {
             const result = await window.updater?.checkForUpdates();
-            // 如果没有通过事件更新状态，手动处理返回结果
+            // If event didn't update state, handle result manually
             if (result?.updateInfo && result.updateInfo.version) {
-                // 检查是否有新版本
+                // Check if there's a new version
                 const currentVersion = await window.updater?.getAppVersion();
                 if (result.updateInfo.version !== currentVersion) {
                     setStatus('available');
@@ -96,7 +96,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
     }, []);
 
     const handleInstallUpdate = useCallback(async () => {
-        // 延迟一小段时间确保 UI 更新后再执行
+        // Delay briefly to ensure UI updates before executing
         setTimeout(async () => {
             try {
                 await window.updater?.installUpdate();
@@ -126,17 +126,17 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
         } else {
             text = notes.map(n => `${n.version}: ${n.note}`).join('\n');
         }
-        // 解码 HTML 实体
+        // Decode HTML entities
         text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
-        // 为链接添加样式并修改为使用 data-href，阻止默认行为
-        // 匹配所有 <a href="..." 或 <a href='...' 格式
+        // Add styles to links and change to use data-href, prevent default behavior
+        // Match all <a href="..." or <a href='...' formats
         text = text.replace(/<a\s+href=["']([^"']+)["']/gi, (match, url) => {
             return `<a data-href="${url}" href="#" style="color: ${isDark ? '#60a5fa' : '#2563eb'}; text-decoration: underline; cursor: pointer;"`;
         });
         return text || 'View release page for details';
     };
 
-    // 处理链接点击
+    // Handle link clicks
     const handleLinkClick = (e: React.MouseEvent<HTMLDivElement>) => {
         const target = e.target as HTMLElement;
         if (target.tagName === 'A') {

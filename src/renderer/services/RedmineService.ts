@@ -60,8 +60,8 @@ export class RedmineService {
     }
 
     async fetchIssueDetail(issueId: number): Promise<Issue> {
-        // 包含 journals, attachments, watchers(关注者)
-        // 自定义字段（包括协助者）会自动包含在 Issue 响应中
+        // Includes journals, attachments, watchers
+        // Custom fields (including assigned watchers) are automatically included in Issue response
         const response = await this.axios.get(`issues/${issueId}.json?include=journals,attachments,watchers`);
         return response.data.issue;
     }
@@ -79,32 +79,32 @@ export class RedmineService {
         await this.axios.delete(`issues/${issueId}.json`);
     }
 
-    // 远程搜索 API
+    // Remote search API
     async searchIssues(query: string, params?: {
         project_id?: number;
         limit?: number;
         offset?: number;
     }): Promise<{ issues: Issue[]; total_count: number }> {
-        // 使用 Redmine 的 search.json 端点进行全局搜索
-        // 返回的结果格式和 issues.json 不同，需要提取 issue IDs 然后获取详情
+        // Use Redmine's search.json endpoint for global search
+        // The returned format differs from issues.json, need to extract issue IDs then fetch details
         const searchParams: Record<string, any> = {
             q: query,
-            issues: 1,  // 只搜索 issues
+            issues: 1,  // Search issues only
             limit: params?.limit || 25,
             offset: params?.offset || 0
         };
         if (params?.project_id) {
-            searchParams.scope = 'subprojects';  // 包含子项目
+            searchParams.scope = 'subprojects';  // Include subprojects
         }
 
         const response = await this.axios.get('search.json', { params: searchParams });
 
-        // search.json 返回的结果结构
+        // Structure of search.json response
         // { results: [{ id, title, type, url, description, datetime }], total_count, offset, limit }
         const searchResults = response.data.results || [];
         const totalCount = response.data.total_count || 0;
 
-        // 过滤出 issues 类型的结果并提取 ID (URL 格式: /issues/12345)
+        // Filter for issue type results and extract IDs (URL format: /issues/12345)
         const issueIds: number[] = [];
         for (const result of searchResults) {
             if (result.type === 'issue' && result.url) {
@@ -115,18 +115,18 @@ export class RedmineService {
             }
         }
 
-        // 如果没有搜索结果，返回空数组
+        // If no search results, return empty array
         if (issueIds.length === 0) {
             return { issues: [], total_count: totalCount };
         }
 
-        // 使用 issues.json 的 issue_id 参数批量获取 issue 详情
-        // 这比逐个请求效率更高
+        // Use issues.json issue_id parameter to batch fetch issue details
+        // This is more efficient than individual requests
         const issueIdStr = issueIds.join(',');
         const issuesResponse = await this.axios.get('issues.json', {
             params: {
                 issue_id: issueIdStr,
-                status_id: '*',  // 包含所有状态
+                status_id: '*',  // Include all statuses
                 limit: issueIds.length
             }
         });
@@ -137,7 +137,7 @@ export class RedmineService {
         };
     }
 
-    // 关注者 API
+    // Watchers API
     async addWatcher(issueId: number, userId: number): Promise<void> {
         await this.axios.post(`issues/${issueId}/watchers.json`, { user_id: userId });
     }

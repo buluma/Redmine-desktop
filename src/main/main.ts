@@ -175,9 +175,9 @@ function createWindow() {
         win.loadFile(indexPath)
     }
 
-    // 拦截导航，外部链接在系统浏览器打开
+    // Intercept navigation, open external links in system browser
     win.webContents.on('will-navigate', (event, url) => {
-        // 如果是外部链接（不是本地文件或开发服务器）
+        // If it's an external link (not a local file or dev server)
         if (!url.startsWith('file://') && !url.startsWith('http://localhost')) {
             event.preventDefault()
             const { shell } = require('electron')
@@ -185,7 +185,7 @@ function createWindow() {
         }
     })
 
-    // 处理新窗口打开请求
+    // Handle new window open requests
     win.webContents.setWindowOpenHandler(({ url }) => {
         const { shell } = require('electron')
         shell.openExternal(url)
@@ -279,7 +279,7 @@ app.whenReady().then(() => {
         createTray()
     }
 
-    // Initialize auto-updater (自动检测由 updater.ts 处理)
+    // Initialize auto-updater (auto check handled by updater.ts)
     if (win) {
         initUpdater(win)
     }

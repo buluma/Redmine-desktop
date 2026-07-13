@@ -90,16 +90,16 @@ export const RichEditor: React.FC<RichEditorProps> = ({ initialValue, onChange, 
                 <button
                     onClick={() => fileInputRef.current?.click()}
                     style={{ background: '#333', border: 'none', color: '#ccc', padding: '5px 10px', borderRadius: 4, cursor: 'pointer', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5 }}
-                >📎 上传附件</button>
+                >📎 Upload Attachment</button>
                 <div style={{ flex: 1 }} />
                 <button
                     onClick={onSave}
                     style={{ background: '#0c66ff', border: 'none', color: 'white', padding: '6px 15px', borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}
-                >保存</button>
+                >Save</button>
                 <button
                     onClick={onCancel}
                     style={{ background: '#333', border: 'none', color: '#888', padding: '6px 15px', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}
-                >取消</button>
+                >Cancel</button>
             </div>
             <style>{`
                 .toastui-editor-defaultUI {

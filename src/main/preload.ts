@@ -71,17 +71,17 @@ contextBridge.exposeInMainWorld('updater', {
         return () => ipcRenderer.off('update-error', handler)
     },
 
-    // 静默更新通知（后台检测到更新时）
+    // Silent update notification (when background detects an update)
     onUpdateAvailableSilent: (callback: (info: any) => void) => {
         const handler = (_: any, info: any) => callback(info)
         ipcRenderer.on('update-available-silent', handler)
         return () => ipcRenderer.off('update-available-silent', handler)
     },
 
-    // 获取自动更新设置
+    // Get auto update settings
     getAutoUpdateSettings: () => ipcRenderer.invoke('get-auto-update-settings'),
 
-    // 设置自动更新配置
+    // Set auto update configuration
     setAutoUpdateSettings: (settings: { enabled?: boolean; interval?: number }) =>
         ipcRenderer.invoke('set-auto-update-settings', settings),
 })

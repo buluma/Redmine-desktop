@@ -15,7 +15,7 @@ export interface User {
 export interface MemberWithGroup {
     id: number;
     name: string;
-    groups: string[]; // Role names like "客户端", "服务器", "测试" etc.
+    groups: string[]; // Role names like "Client", "Server", "Test" etc.
 }
 
 export interface Project {
@@ -66,7 +66,7 @@ export interface Attachment {
 export interface CustomField {
     id: number;
     name: string;
-    value?: any;  // 可以是字符串、数组等
+    value?: any;  // Can be string, array, etc.
 }
 
 export interface Issue {
@@ -91,8 +91,8 @@ export interface Issue {
     closed_on?: string;
     journals?: IssueJournal[];
     attachments?: Attachment[];
-    watchers?: { id: number; name: string }[];  // 关注者
-    custom_fields?: CustomField[];  // 自定义字段（包括协助者）
+    watchers?: { id: number; name: string }[];  // Watchers
+    custom_fields?: CustomField[];  // Custom fields (including assigned watchers)
 }
 
 export interface IssueJournal {

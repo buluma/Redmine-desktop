@@ -6,14 +6,14 @@ import * as path from 'path';
 import * as https from 'https';
 import Store from 'electron-store';
 
-// 配置存储
+// Configuration store
 const store = new Store();
 
-// 保存最新版本信息
+// Store latest version info
 let latestUpdateInfo: UpdateInfo | null = null;
-// 保存下载的 DMG 路径 (macOS)
+// Store downloaded DMG path (macOS)
 let downloadedDmgPath: string | null = null;
-// 后台检查定时器
+// Background check timer
 let autoCheckTimer: NodeJS.Timeout | null = null;
 
 // Configure logging
@@ -30,7 +30,7 @@ let mainWindow: BrowserWindow | null = null;
 const isDev = !app.isPackaged;
 
 /**
- * 下载文件到指定路径，支持重定向和进度回调
+ * Download file to specified path, supports redirects and progress callbacks
  */
 function downloadFile(
     url: string,
@@ -45,7 +45,7 @@ function downloadFile(
 
         const makeRequest = (requestUrl: string) => {
             https.get(requestUrl, (response) => {
-                // 处理重定向
+                // Handle redirects
                 if (response.statusCode === 301 || response.statusCode === 302) {
                     const redirectUrl = response.headers.location;
                     if (redirectUrl) {
@@ -110,28 +110,28 @@ export function initUpdater(win: BrowserWindow) {
     setupAutoUpdaterEvents();
     setupIpcHandlers();
 
-    // 启动自动检测
+    // Start auto check
     startAutoCheck();
 }
 
 /**
- * 获取自动检测设置
+ * Get auto check settings
  */
 function getAutoCheckSettings(): { enabled: boolean; interval: number } {
     return {
         enabled: store.get('autoCheckUpdate', true) as boolean,
-        interval: store.get('autoCheckInterval', 24) as number  // 默认 24 小时
+        interval: store.get('autoCheckInterval', 24) as number  // Default 24 hours
     };
 }
 
 /**
- * 启动后台自动检测
+ * Start background auto check
  */
 let initialCheckTimeout: NodeJS.Timeout | null = null;
-let isFirstStart = true;  // 标记是否是首次启动
+let isFirstStart = true;  // Mark whether it's the first startup
 
 function startAutoCheck() {
-    // 先清除所有之前的定时器
+    // Clear all previous timers first
     if (autoCheckTimer) {
         clearInterval(autoCheckTimer);
         autoCheckTimer = null;
@@ -148,28 +148,28 @@ function startAutoCheck() {
         return;
     }
 
-    const intervalMs = settings.interval * 60 * 60 * 1000; // 转换为毫秒
+    const intervalMs = settings.interval * 60 * 60 * 1000; // Convert to milliseconds
     log.info(`Auto update check enabled, interval: ${settings.interval} hours (${intervalMs}ms)`);
 
-    // 启动定时检测
+    // Start periodic check
     autoCheckTimer = setInterval(() => {
         log.info('Background auto check for updates...');
         silentCheckForUpdates();
     }, intervalMs);
 
-    // 只在首次启动时延迟检测一次
+    // Only delay the initial check on first startup
     if (isFirstStart) {
         isFirstStart = false;
         initialCheckTimeout = setTimeout(() => {
             log.info('Initial auto check for updates...');
             silentCheckForUpdates();
             initialCheckTimeout = null;
-        }, 10000); // 启动后 10 秒
+        }, 10000); // 10 seconds after startup
     }
 }
 
 /**
- * 静默检测更新（不弹窗，只在有更新时通知）
+ * Silent check for updates (no popup, only notify when update is available)
  */
 async function silentCheckForUpdates() {
     try {
@@ -180,7 +180,7 @@ async function silentCheckForUpdates() {
             const currentVersion = app.getVersion();
             if (result.updateInfo.version !== currentVersion) {
                 log.info(`Silent check found update: ${result.updateInfo.version}`);
-                // 发送通知到渲染进程
+                // Send notification to renderer process
                 sendToRenderer('update-available-silent', {
                     version: result.updateInfo.version,
                     releaseDate: result.updateInfo.releaseDate
@@ -214,7 +214,7 @@ function setupAutoUpdaterEvents() {
     // Update available
     autoUpdater.on('update-available', (info: UpdateInfo) => {
         log.info('Update available:', info.version);
-        latestUpdateInfo = info;  // 保存版本信息
+        latestUpdateInfo = info;  // Save version info
         sendToRenderer('update-available', {
             version: info.version,
             releaseDate: info.releaseDate,
@@ -255,10 +255,10 @@ function setupAutoUpdaterEvents() {
         if (mainWindow) {
             dialog.showMessageBox(mainWindow, {
                 type: 'info',
-                title: '更新已就绪',
-                message: `新版本 ${info.version} 已下载完成`,
-                detail: '重启应用以完成更新。',
-                buttons: ['立即重启', '稍后'],
+                title: 'Update Ready',
+                message: `New version ${info.version} has been downloaded`,
+                detail: 'Restart the app to complete the update.',
+                buttons: ['Restart Now', 'Later'],
                 defaultId: 0,
                 cancelId: 1
             }).then(({ response }) => {
@@ -406,12 +406,12 @@ function setupIpcHandlers() {
                 log.info('Dev mode: opening releases page instead of downloading');
                 await shell.openExternal('https://github.com/buluma/Redmine-desktop/releases');
                 sendToRenderer('update-error', {
-                    message: '开发模式下无法自动下载，已打开 GitHub Releases 页面'
+                    message: 'Cannot auto-download in dev mode. Opening GitHub Releases page.'
                 });
                 return { success: false, error: 'Dev mode - opened releases page' };
             }
 
-            // macOS: 自动下载 DMG 文件并打开
+            // macOS: auto-download DMG file and open
             if (process.platform === 'darwin' && latestUpdateInfo) {
                 const version = latestUpdateInfo.version;
                 const dmgFileName = `Redmine-${version}-arm64.dmg`;
@@ -427,7 +427,7 @@ function setupIpcHandlers() {
                     });
 
                     log.info(`DMG downloaded to ${downloadPath}`);
-                    downloadedDmgPath = downloadPath;  // 保存路径
+                    downloadedDmgPath = downloadPath;  // Save path
                     sendToRenderer('update-downloaded', {
                         version: version,
                         dmgPath: downloadPath
@@ -435,10 +435,10 @@ function setupIpcHandlers() {
                     return { success: true, dmgPath: downloadPath };
                 } catch (downloadError: any) {
                     log.error('Failed to download DMG:', downloadError);
-                    // 下载失败时打开 releases 页面
+                    // Open releases page on download failure
                     await shell.openExternal('https://github.com/buluma/Redmine-desktop/releases/latest');
                     sendToRenderer('update-error', {
-                        message: `下载失败，已打开下载页面: ${downloadError.message}`
+                        message: `Download failed. Opening release page: ${downloadError.message}`
                     });
                     return { success: false, error: downloadError.message };
                 }
@@ -461,22 +461,22 @@ function setupIpcHandlers() {
     ipcMain.handle('install-update', async () => {
         try {
             if (isDev) {
-                sendToRenderer('update-error', { message: '开发模式下无法安装更新' });
+                sendToRenderer('update-error', { message: 'Cannot install update in dev mode' });
                 return { success: false, error: 'Cannot install in dev mode' };
             }
 
-            // macOS: 打开下载的 DMG 文件并退出应用
+            // macOS: open downloaded DMG file and quit app
             if (process.platform === 'darwin' && downloadedDmgPath) {
                 log.info(`Opening DMG: ${downloadedDmgPath}`);
 
-                // 打开 DMG 文件
+                // Open DMG file
                 shell.openPath(downloadedDmgPath).then((error) => {
                     if (error) {
                         log.error('Failed to open DMG:', error);
                     }
                 });
 
-                // 延迟后退出应用，给用户时间看到 DMG 打开
+                // Delay quit to give user time to see DMG open
                 setTimeout(() => {
                     log.info('Quitting app for manual update...');
                     app.quit();
@@ -487,7 +487,7 @@ function setupIpcHandlers() {
 
             log.info('Installing update and restarting...');
 
-            // Windows: 使用 quitAndInstall
+            // Windows: use quitAndInstall
             setTimeout(() => {
                 log.info('Calling quitAndInstall...');
                 try {
@@ -527,12 +527,12 @@ function setupIpcHandlers() {
         }
     });
 
-    // 获取自动更新设置
+    // Get auto update settings
     ipcMain.handle('get-auto-update-settings', () => {
         return getAutoCheckSettings();
     });
 
-    // 设置自动更新配置
+    // Set auto update settings
     ipcMain.handle('set-auto-update-settings', (_, settings: { enabled?: boolean; interval?: number }) => {
         if (settings.enabled !== undefined) {
             store.set('autoCheckUpdate', settings.enabled);
@@ -541,7 +541,7 @@ function setupIpcHandlers() {
             store.set('autoCheckInterval', settings.interval);
         }
 
-        // 重新启动自动检测
+        // Restart auto check
         startAutoCheck();
 
         return getAutoCheckSettings();
