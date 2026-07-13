@@ -462,7 +462,7 @@ const IssueListContent = React.memo(({
         <div style={{ position: 'relative' }} ref={listRef}>
             <div className="selection-indicator" style={finalIndicatorStyle} />
             {sortedKeys.map((key: string) => {
-                const isCollapsed = localCollapsed[key] ?? key.includes('验证完成') || key.includes('Verification Complete');
+                const isCollapsed = localCollapsed[key] ?? (key.includes('验证完成') || key.includes('Verification Complete'));
                 const issuesInGroup = groups[key];
 
                 return (
