@@ -84,3 +84,4 @@ release
 # OS metadata
 .DS_Store
 Thumbs.db
+ELECTRON_UPGRADE_PLAN.md
