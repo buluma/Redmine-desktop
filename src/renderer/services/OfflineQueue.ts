@@ -11,6 +11,13 @@ export interface QueuedMutation {
     timestamp: number
     retryCount: number
     lastError?: string
+    expectedState?: {
+        statusId?: number
+        priorityId?: number
+        assignedToId?: number
+        fixedVersionId?: number
+        updatedAt?: string
+    }
 }
 
 class OfflineQueueDB extends Dexie {

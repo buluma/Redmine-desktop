@@ -3,6 +3,7 @@ import { RedmineService } from '../services/RedmineService'
 import { Issue, User, IssueStatus, IssuePriority } from '../models/redmine'
 import { getAssignedWatchers, getAssignedWatchersField, createAssignedWatchersUpdate } from '../utils/assignedWatchers'
 import { isVerified, isDevComplete, isComplete } from '../constants/status'
+import * as OfflineQueue from '../services/OfflineQueue'
 
 export interface StatusCounts {
     dev: number
@@ -319,17 +320,59 @@ export function useIssues(): IssuesState & IssuesActions {
     }, [])
 
     const updateIssue = useCallback(async (service: RedmineService, id: number, data: any) => {
-        setIsLoading(true)
+        // Capture current issue state for conflict detection
+        const currentIssue = allIssues.find(i => i.id === id)
+        const expectedState = currentIssue ? {
+            statusId: currentIssue.status?.id,
+            priorityId: currentIssue.priority?.id,
+            assignedToId: currentIssue.assigned_to?.id,
+            fixedVersionId: currentIssue.fixed_version?.id,
+            updatedAt: currentIssue.updated_on,
+        } : undefined
+
+        // Optimistic update
+        let previousIssue: Issue | undefined
+        setAllIssues(prev => {
+            const issue = prev.find(i => i.id === id)
+            if (!issue) return prev
+            previousIssue = issue
+            
+            const optimistic = { ...issue, ...data, updated_on: new Date().toISOString() }
+            if (data.status_id !== undefined) optimistic.status = { ...issue.status, id: data.status_id }
+            if (data.priority_id !== undefined) optimistic.priority = { ...issue.priority, id: data.priority_id }
+            if (data.assigned_to_id !== undefined) {
+                optimistic.assigned_to = data.assigned_to_id ? { id: parseInt(data.assigned_to_id), name: '' } : undefined
+            }
+            if (data.fixed_version_id !== undefined) {
+                optimistic.fixed_version = data.fixed_version_id ? { id: parseInt(data.fixed_version_id), name: '' } : undefined
+            }
+            
+            return prev.map(i => i.id === id ? optimistic : i)
+        })
+
         try {
             await service.updateIssue(id, data)
             const updated = await service.fetchIssueDetail(id)
             setAllIssues(prev => prev.map(i => i.id === id ? updated : i))
         } catch (e: any) {
-            setErrorMessage(e.message)
-        } finally {
-            setIsLoading(false)
+            // Revert optimistic update
+            if (previousIssue) {
+                setAllIssues(prev => prev.map(i => i.id === id ? previousIssue! : i))
+            }
+            // Queue for offline retry
+            await OfflineQueue.enqueueMutation({
+                type: 'update',
+                endpoint: `/issues/${id}.json`,
+                method: 'PUT',
+                body: data,
+                issueId: id,
+                subject: currentIssue?.subject,
+                timestamp: Date.now(),
+                expectedState,
+            })
+            setErrorMessage(`Update queued for retry: ${e.message}`)
         }
-    }, [])
+    }, [allIssues])
 
     const addNote = useCallback(async (service: RedmineService, id: number, note: string) => {
         await updateIssue(service, id, { notes: note })
