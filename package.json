@@ -1,8 +1,8 @@
 {
   "name": "redmine-desktop",
   "productName": "Redmine Desktop",
-  "version": "1.0.29",
-  "author": "wenhuxian",
+  "version": "2.0.1",
+  "author": "buluma",
   "license": "MIT",
   "description": "Cross-platform Redmine client",
   "main": "dist-electron/main.js",
