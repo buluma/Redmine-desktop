@@ -18,16 +18,8 @@ process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.
 app.commandLine.appendSwitch('ignore-certificate-errors')
 app.commandLine.appendSwitch('disable-site-isolation-trials')
 
-// Enable GPU hardware acceleration for better rendering performance
-app.commandLine.appendSwitch('enable-gpu-rasterization')
-app.commandLine.appendSwitch('enable-zero-copy')
-app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen,single-on-top,underlay')
-// Reduce frame drops during animations
-app.commandLine.appendSwitch('disable-frame-rate-limit')
 // Better scrolling performance
 app.commandLine.appendSwitch('enable-smooth-scrolling')
-// Optimize for large windows
-app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder,CanvasOopRasterization')
 
 
 let win: BrowserWindow | null
@@ -151,9 +143,10 @@ function createWindow() {
         minWidth: 1000,
         minHeight: 700,
         titleBarStyle: isMac ? 'hiddenInset' : 'default',
+        // NOTE: Do NOT use transparent:true with vibrancy in Electron 33+ (causes blank window).
+        // vibrancy alone handles the frosted glass effect on macOS.
+        // On Windows/Linux, use a solid background since vibrancy is not available.
         backgroundColor: isMac ? '#00000000' : '#000000',
-        transparent: isMac,
-        // Re-enable vibrancy for macOS but with performance-conscious settings
         vibrancy: isMac ? 'under-window' : undefined,
         visualEffectState: isMac ? 'active' : undefined,
         webPreferences: {

@@ -133,7 +133,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
         text = text.replace(/<a\s+href=["']([^"']+)["']/gi, (match, url) => {
             return `<a data-href="${url}" href="#" style="color: ${isDark ? '#60a5fa' : '#2563eb'}; text-decoration: underline; cursor: pointer;"`;
         });
-        return text || '查看发布页了解详情';
+        return text || 'View release page for details';
     };
 
     // 处理链接点击
@@ -232,8 +232,8 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                 {/* Header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
                     <div>
-                        <h2 style={titleStyles}>软件更新</h2>
-                        <p style={subtitleStyles}>当前版本: v{currentVersion}</p>
+                        <h2 style={titleStyles}>Software Update</h2>
+                        <p style={subtitleStyles}>Current version: v{currentVersion}</p>
                     </div>
                     <button
                         onClick={onClose}
@@ -256,7 +256,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                         <div style={{ textAlign: 'center', padding: 20 }}>
                             <div style={{ fontSize: 40, marginBottom: 12 }}>🚀</div>
                             <p style={{ color: isDark ? '#888' : '#666' }}>
-                                点击下方按钮检查更新
+                                Click the button below to check for updates
                             </p>
                         </div>
                     )}
@@ -273,7 +273,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                                 margin: '0 auto 12px',
                             }} />
                             <p style={{ color: isDark ? '#fff' : '#1c1c1e' }}>
-                                正在检查更新...
+                                Checking for updates...
                             </p>
                         </div>
                     )}
@@ -282,15 +282,15 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                         <div style={{ textAlign: 'center', padding: 20 }}>
                             <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
                             <p style={{ color: isDark ? '#4ade80' : '#22c55e', fontWeight: 600, marginBottom: 4 }}>
-                                {isDevMode ? '开发模式' : '已是最新版本'}
+                                {isDevMode ? 'Dev Mode' : 'You are up to date'}
                             </p>
                             <p style={{ color: isDark ? '#888' : '#666', fontSize: 13 }}>
                                 v{updateInfo?.version || currentVersion}
                             </p>
                             {isDevMode && (
                                 <p style={{ color: isDark ? '#888' : '#666', fontSize: 12, marginTop: 8 }}>
-                                    开发模式下无法检查更新<br />
-                                    请点击"查看发布页"查看最新版本
+                                    Cannot check for updates in dev mode<br />
+                                    Click "View Release Page" to see the latest version
                                 </p>
                             )}
                         </div>
@@ -313,11 +313,11 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                                 </div>
                                 <div>
                                     <p style={{ fontWeight: 700, color: isDark ? '#fff' : '#1c1c1e', marginBottom: 2 }}>
-                                        新版本可用: v{updateInfo.version}
+                                        New version available: v{updateInfo.version}
                                     </p>
                                     {updateInfo.releaseDate && (
                                         <p style={{ fontSize: 12, color: isDark ? '#888' : '#666' }}>
-                                            发布时间: {new Date(updateInfo.releaseDate).toLocaleDateString()}
+                                            Release date: {new Date(updateInfo.releaseDate).toLocaleDateString()}
                                         </p>
                                     )}
                                 </div>
@@ -345,7 +345,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                         <div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                                 <span style={{ color: isDark ? '#fff' : '#1c1c1e', fontWeight: 600 }}>
-                                    正在下载更新...
+                                    Downloading update...
                                 </span>
                                 <span style={{ color: isDark ? '#888' : '#666', fontSize: 13 }}>
                                     {downloadProgress.percent.toFixed(1)}%
@@ -365,10 +365,10 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                         <div style={{ textAlign: 'center', padding: 20 }}>
                             <div style={{ fontSize: 40, marginBottom: 12 }}>🎉</div>
                             <p style={{ color: isDark ? '#4ade80' : '#22c55e', fontWeight: 600, marginBottom: 4 }}>
-                                更新已下载完成
+                                Update downloaded
                             </p>
                             <p style={{ color: isDark ? '#888' : '#666', fontSize: 13 }}>
-                                点击 "立即安装" 打开安装包并退出应用
+                                Click "Install Now" to open the installer and quit the app
                             </p>
                         </div>
                     )}
@@ -377,7 +377,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                         <div style={{ textAlign: 'center', padding: 20 }}>
                             <div style={{ fontSize: 40, marginBottom: 12 }}>❌</div>
                             <p style={{ color: '#ef4444', fontWeight: 600, marginBottom: 4 }}>
-                                更新失败
+                                Update failed
                             </p>
                             <p style={{ color: isDark ? '#888' : '#666', fontSize: 13, wordBreak: 'break-word' }}>
                                 {error.message}
@@ -392,7 +392,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                         style={buttonStyles(false)}
                         onClick={handleOpenReleasePage}
                     >
-                        查看发布页
+                        View Release Page
                     </button>
 
                     {(status === 'idle' || status === 'not-available' || status === 'error') && (
@@ -400,7 +400,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                             style={buttonStyles(true)}
                             onClick={handleCheckForUpdates}
                         >
-                            检查更新
+                            Check for Updates
                         </button>
                     )}
 
@@ -409,7 +409,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                             style={buttonStyles(true)}
                             onClick={handleDownloadUpdate}
                         >
-                            下载更新
+                            Download Update
                         </button>
                     )}
 
@@ -418,7 +418,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                             style={buttonStyles(true)}
                             onClick={handleInstallUpdate}
                         >
-                            立即安装
+                            Install Now
                         </button>
                     )}
 
@@ -427,7 +427,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                             style={{ ...buttonStyles(true), opacity: 0.5, cursor: 'not-allowed' }}
                             disabled
                         >
-                            检查中...
+                            Checking...
                         </button>
                     )}
 
@@ -436,7 +436,7 @@ const UpdaterModal: React.FC<UpdaterModalProps> = ({ isOpen, onClose, isDark }) 
                             style={{ ...buttonStyles(true), opacity: 0.5, cursor: 'not-allowed' }}
                             disabled
                         >
-                            下载中...
+                            Downloading...
                         </button>
                     )}
                 </div>

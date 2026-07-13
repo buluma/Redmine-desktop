@@ -114,7 +114,7 @@ const MemoIssueItem = React.memo(({
                                                 </optgroup>
                                             ))}
                                             {noGroup.length > 0 && (
-                                                <optgroup label="其他">
+                                                <optgroup label="Others">
                                                     {noGroup.sort((a, b) => a.name.localeCompare(b.name)).map(m => (
                                                         <option key={m.id} value={m.id}>{m.name}</option>
                                                     ))}
@@ -146,7 +146,7 @@ const MemoIssueItem = React.memo(({
                 }}
                 onMouseEnter={e => e.currentTarget.style.opacity = '1'}
                 onMouseLeave={e => { if (!isFollowed) e.currentTarget.style.opacity = '0.3'; }}
-                title={isFollowed ? '取消关注' : '添加关注'}
+                title={isFollowed ? 'Unfollow' : 'Follow'}
             >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
@@ -448,8 +448,8 @@ const IssueListContent = React.memo(({
     if (sortedKeys.length === 0 && !vm.isLoading) {
         return (
             <div style={{ textAlign: 'center', marginTop: 50, color: 'var(--text-secondary)', fontSize: 13 }}>
-                该项当前下未发现任务。<br />
-                <button onClick={() => vm.refreshData()} style={{ marginTop: 10, background: 'none', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '5px 15px', borderRadius: 4, cursor: 'pointer' }}>强制刷新</button>
+                No issues found in this section.<br />
+                <button onClick={() => vm.refreshData()} style={{ marginTop: 10, background: 'none', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '5px 15px', borderRadius: 4, cursor: 'pointer' }}>Force Refresh</button>
             </div>
         );
     }
@@ -585,8 +585,8 @@ const RemoteSearchResults = React.memo(({
                         <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
                     </svg>
                 </div>
-                输入关键词在服务器上搜索任务<br />
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>支持搜索任务标题、描述等内容</span>
+                Type keywords to search issues on the server<br />
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Supports searching by title, description, and more</span>
             </div>
         );
     }
@@ -599,7 +599,7 @@ const RemoteSearchResults = React.memo(({
                         <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12"></circle>
                     </svg>
                 </div>
-                正在远程搜索...
+                Searching on server...
             </div>
         );
     }
@@ -608,8 +608,8 @@ const RemoteSearchResults = React.memo(({
         return (
             <div style={{ textAlign: 'center', marginTop: 80, color: 'var(--text-secondary)', fontSize: 13 }}>
                 <div style={{ marginBottom: 10 }}>🔍</div>
-                未找到匹配 "{searchQuery}" 的任务<br />
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>尝试使用不同的关键词</span>
+                No issues found matching "{searchQuery}"<br />
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Try different keywords</span>
             </div>
         );
     }
@@ -630,7 +630,7 @@ const RemoteSearchResults = React.memo(({
                 top: 0,
                 zIndex: 10
             }}>
-                找到 {totalCount} 个结果，显示前 {results.length} 个
+                Found {totalCount} results, showing first {results.length}
             </div>
 
             {results.map((issue: Issue) => (
@@ -650,7 +650,7 @@ const RemoteSearchResults = React.memo(({
                             borderRadius: 4,
                             color: 'var(--accent-color)'
                         }}>
-                            {issue.project?.name || '未知项目'}
+                            {issue.project?.name || 'Unknown Project'}
                         </span>
                         {issue.fixed_version && (
                             <span style={{
@@ -1026,7 +1026,7 @@ const App: React.FC = () => {
             });
         } catch (e: any) {
             console.error('Download failed', e);
-            alert('下载失败: ' + e.message);
+            alert('Download failed: ' + e.message);
         }
     };
 
@@ -1139,7 +1139,7 @@ const App: React.FC = () => {
                     );
                 })}
                 {noGroup.filter(filtered).length > 0 && (
-                    <optgroup label="其他">
+                    <optgroup label="Others">
                         {noGroup.filter(filtered).map(m => (
                             <option key={m.id} value={m.id}>{m.name}</option>
                         ))}
@@ -1510,9 +1510,9 @@ const App: React.FC = () => {
                         </div>
                     </div>
                     <div style={{ marginBottom: 20 }}>
-                        <h3 style={{ fontSize: 13, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 15 }}>自动更新</h3>
+                        <h3 style={{ fontSize: 13, color: 'var(--text-secondary)', textTransform: 'uppercase', marginBottom: 15 }}>Auto Update</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '15px', alignItems: 'center', marginBottom: 10 }}>
-                            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>自动检测更新</span>
+                            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Auto Check for Updates</span>
                             <input
                                 type="checkbox"
                                 checked={autoUpdateEnabled}
@@ -1523,7 +1523,7 @@ const App: React.FC = () => {
                                 }}
                                 style={{ width: 20, height: 20 }}
                             />
-                            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>检测频率</span>
+                            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Check Frequency</span>
                             <select
                                 value={autoUpdateInterval}
                                 onChange={async (e) => {
@@ -1533,21 +1533,21 @@ const App: React.FC = () => {
                                 }}
                                 style={{ padding: '8px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 6 }}
                             >
-                                <option value="0.0167">1分钟(测试)</option>
-                                <option value="1">每小时</option>
-                                <option value="6">每6小时</option>
-                                <option value="12">每12小时</option>
-                                <option value="24">每天</option>
-                                <option value="168">每周</option>
+                                <option value="0.0167">1 Minute (Test)</option>
+                                <option value="1">Every Hour</option>
+                                <option value="6">Every 6 Hours</option>
+                                <option value="12">Every 12 Hours</option>
+                                <option value="24">Daily</option>
+                                <option value="168">Weekly</option>
                             </select>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 15 }}>
-                            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>手动检查更新</span>
+                            <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Check Manually</span>
                             <button
                                 onClick={() => { setShowSettings(false); setShowUpdaterModal(true); }}
                                 style={{ padding: '8px 16px', background: 'var(--button-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
                             >
-                                🚀 检查更新
+                                🚀 Check for Updates
                             </button>
                         </div>
                     </div>
@@ -1594,10 +1594,10 @@ const App: React.FC = () => {
             {newVersionProjectId !== null && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
                     <div style={{ background: '#1a1a1a', padding: 20, borderRadius: 12, width: 300 }}>
-                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>新建版本</div>
+                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>New Version</div>
                         <input
                             type="text"
-                            placeholder="版本名称 (如 0.7.0)"
+                            placeholder="Version name (e.g. 0.7.0)"
                             value={newVersionName}
                             onChange={e => setNewVersionName(e.target.value)}
                             autoFocus
@@ -1622,11 +1622,11 @@ const App: React.FC = () => {
                                     }
                                 }}
                                 style={{ flex: 1, padding: 10, background: '#0c66ff', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-                            >创建</button>
+                            >Create</button>
                             <button
                                 onClick={() => setNewVersionProjectId(null)}
                                 style={{ padding: '10px 20px', background: '#333', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-                            >取消</button>
+                            >Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -1636,8 +1636,8 @@ const App: React.FC = () => {
             {deleteVersionConfirm && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
                     <div style={{ background: '#1a1a1a', padding: 20, borderRadius: 12, width: 300 }}>
-                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>删除版本</div>
-                        <div style={{ fontSize: 12, color: '#888', marginBottom: 15 }}>确定要删除版本 "{deleteVersionConfirm.name}" 吗？此操作不可撤销。</div>
+                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>Delete Version</div>
+                        <div style={{ fontSize: 12, color: '#888', marginBottom: 15 }}>Are you sure you want to delete version "{deleteVersionConfirm.name}"? This action cannot be undone.</div>
                         <div style={{ display: 'flex', gap: 10 }}>
                             <button
                                 onClick={async () => {
@@ -1645,11 +1645,11 @@ const App: React.FC = () => {
                                     setDeleteVersionConfirm(null);
                                 }}
                                 style={{ flex: 1, padding: 10, background: '#ff453a', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-                            >删除</button>
+                            >Delete</button>
                             <button
                                 onClick={() => setDeleteVersionConfirm(null)}
                                 style={{ padding: '10px 20px', background: '#333', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-                            >取消</button>
+                            >Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -1659,8 +1659,8 @@ const App: React.FC = () => {
             {deleteIssueConfirm && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
                     <div style={{ background: '#1a1a1a', padding: 20, borderRadius: 12, width: 300 }}>
-                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>删除任务</div>
-                        <div style={{ fontSize: 12, color: '#888', marginBottom: 15 }}>确定要删除任务 #{deleteIssueConfirm} 吗？此操作不可撤销。</div>
+                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>Delete Issue</div>
+                        <div style={{ fontSize: 12, color: '#888', marginBottom: 15 }}>Are you sure you want to delete issue #{deleteIssueConfirm}? This action cannot be undone.</div>
                         <div style={{ display: 'flex', gap: 10 }}>
                             <button
                                 onClick={async () => {
@@ -1671,11 +1671,11 @@ const App: React.FC = () => {
                                     }
                                 }}
                                 style={{ flex: 1, padding: 10, background: '#ff453a', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-                            >删除</button>
+                            >Delete</button>
                             <button
                                 onClick={() => setDeleteIssueConfirm(null)}
                                 style={{ padding: '10px 20px', background: '#333', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
-                            >取消</button>
+                            >Cancel</button>
                         </div>
                     </div>
                 </div>
@@ -1770,7 +1770,7 @@ const App: React.FC = () => {
                                     <span
                                         onClick={(e) => { e.stopPropagation(); setNewVersionProjectId(p.id); setNewVersionName(''); }}
                                         style={{ color: '#666', fontSize: 14, padding: '0 5px', cursor: 'pointer' }}
-                                        title="添加版本"
+                                        title="Add Version"
                                     >+</span>
                                 </div>
                                 {expandedProjects[p.id] && (
@@ -1803,7 +1803,7 @@ const App: React.FC = () => {
                                                                 transition: 'all 0.2s',
                                                                 padding: '0 4px'
                                                             }}
-                                                            title={isPinned ? "取消置顶" : "置顶版本"}
+                                                            title={isPinned ? "Unpin" : "Pin Version"}
                                                         >
                                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
                                                                 <path d="M16 9V4l1 0V2H7v2l1 0v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
@@ -1844,13 +1844,13 @@ const App: React.FC = () => {
                                                         <span
                                                             onClick={(e) => { e.stopPropagation(); vm.toggleVersionActive(v.id); }}
                                                             style={{ color: 'var(--text-secondary)', fontSize: 11, padding: '0 3px', cursor: 'pointer', opacity: 0.6 }}
-                                                            title="移入 Others"
+                                                            title="Move to Others"
                                                         >↓</span>
                                                         {totalCount === 0 && (
                                                             <span
                                                                 onClick={(e) => { e.stopPropagation(); setDeleteVersionConfirm({ projectId: p.id, versionId: v.id, name: v.name }); }}
                                                                 style={{ color: '#ff453a', fontSize: 12, padding: '0 3px', cursor: 'pointer' }}
-                                                                title="删除版本"
+                                                                title="Delete Version"
                                                             >×</span>
                                                         )}
                                                     </span>
@@ -1890,7 +1890,7 @@ const App: React.FC = () => {
                                                                         transition: 'all 0.2s',
                                                                         padding: '0 4px'
                                                                     }}
-                                                                    title={isPinned ? "取消置顶" : "置顶版本"}
+                                                                    title={isPinned ? "Unpin" : "Pin Version"}
                                                                 >
                                                                     <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
                                                                         <path d="M16 9V4l1 0V2H7v2l1 0v5c0 1.66-1.34 3-3 3v2h5.97v7l1 1 1-1v-7H19v-2c-1.66 0-3-1.34-3-3z" />
@@ -1934,13 +1934,13 @@ const App: React.FC = () => {
                                                                 <span
                                                                     onClick={(e) => { e.stopPropagation(); vm.toggleVersionActive(v.id); }}
                                                                     style={{ color: '#30d158', fontSize: 11, padding: '0 3px', cursor: 'pointer' }}
-                                                                    title="移出 Others (激活)"
+                                                                    title="Move out of Others (Activate)"
                                                                 >↑</span>
                                                                 {(vm.versionIssueCounts[v.id] || 0) === 0 && (
                                                                     <span
                                                                         onClick={(e) => { e.stopPropagation(); setDeleteVersionConfirm({ projectId: p.id, versionId: v.id, name: v.name }); }}
                                                                         style={{ color: '#ff453a', fontSize: 12, padding: '0 5px', cursor: 'pointer' }}
-                                                                        title="删除版本"
+                                                                        title="Delete Version"
                                                                     >×</span>
                                                                 )}
                                                             </span>
@@ -1996,7 +1996,7 @@ const App: React.FC = () => {
                         </span>
                         <input
                             type="text"
-                            placeholder={vm.searchMode === 'remote' ? "远程搜索..." : "本地搜索"}
+                            placeholder={vm.searchMode === 'remote' ? "Remote search..." : "Local search"}
                             value={vm.searchQuery}
                             onChange={e => vm.setSearchQuery(e.target.value)}
                             onKeyDown={e => {
