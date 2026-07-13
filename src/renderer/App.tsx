@@ -2102,14 +2102,14 @@ const App: React.FC = () => {
                             <span>
                                 {vm.searchMode === 'remote' ? (
                                     vm.isSearching
-                                        ? '🔍 正在远程搜索...'
+                                        ? '🔍 Searching remotely...'
                                         : vm.searchQuery.trim()
-                                            ? `☁️ 远程搜索结果: ${vm.remoteSearchResults.length} / ${vm.remoteSearchTotalCount} 条`
-                                            : '☁️ 远程搜索模式 (输入关键词开始搜索)'
+                                            ? `☁️ Remote results: ${vm.remoteSearchResults.length} / ${vm.remoteSearchTotalCount}`
+                                            : '☁️ Remote search mode (enter keywords to search)'
                                 ) : (
                                     vm.isLoading
-                                        ? '⏳ 正在拉取...'
-                                        : `✅ API 已加载: ${vm.allIssues.length} | 结果显示: ${vm.groupedIssues.sortedKeys.reduce((acc, k) => acc + vm.groupedIssues.groups[k].length, 0)}${vm.isBackgroundRefreshing ? ' | 🔄 后台刷新中...' : ''}`
+                                        ? '⏳ Loading...'
+                                        : `✅ API loaded: ${vm.allIssues.length} | Showing: ${vm.groupedIssues.sortedKeys.reduce((acc, k) => acc + vm.groupedIssues.groups[k].length, 0)}${vm.isBackgroundRefreshing ? ' | 🔄 Background refreshing...' : ''}`
                                 )}
                             </span>
                             <button
@@ -2801,7 +2801,7 @@ const App: React.FC = () => {
                                                 color: '#0c66ff',
                                                 background: 'rgba(12, 102, 255, 0.05)'
                                             }}>
-                                                {isUploading ? '⌛ 上传中...' : '📎 上传文件'}
+                                                {isUploading ? '⌛ Uploading...' : '📎 Upload File'}
                                                 <input
                                                     type="file"
                                                     multiple
