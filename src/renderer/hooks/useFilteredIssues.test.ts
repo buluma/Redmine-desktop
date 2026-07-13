@@ -46,7 +46,7 @@ describe('useFilteredIssues', () => {
     it('returns empty data when no issues', () => {
         const { result } = renderHook(() => useFilteredIssues(defaultParams))
 
-        expect(result.current.versionViewData).toEqual({})
+        expect(result.current.getVersionViewData('10')).toEqual({ groups: {}, sortedKeys: [] })
         expect(result.current.currentGroupedIssues).toEqual({ groups: {}, sortedKeys: [] })
         expect(result.current.versionIssueCounts).toEqual({})
         expect(result.current.followedIssuesCount).toBe(0)
@@ -112,7 +112,7 @@ describe('useFilteredIssues', () => {
             selectedVersionId: 10,
         }))
 
-        const data = result.current.versionViewData['10']
+        const data = result.current.getVersionViewData('10')
         expect(data).toBeDefined()
         expect(data.groups['New']).toHaveLength(1)
         expect(data.groups['In Progress']).toHaveLength(1)
@@ -131,7 +131,7 @@ describe('useFilteredIssues', () => {
             selectedVersionId: 10,
         }))
 
-        const data = result.current.versionViewData['10']
+        const data = result.current.getVersionViewData('10')
         expect(data).toBeDefined()
         expect(data.groups['Alice']).toHaveLength(1)
         expect(data.groups['Bob']).toHaveLength(1)
@@ -183,7 +183,7 @@ describe('useFilteredIssues', () => {
             selectedVersionId: 10,
         }))
 
-        const data = result.current.versionViewData['10']
+        const data = result.current.getVersionViewData('10')
         expect(data).toBeDefined()
         // Only Alice's issue should be in the version bucket
         const allIssuesInBucket = Object.values(data.groups).flat()
