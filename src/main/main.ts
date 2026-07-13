@@ -77,39 +77,6 @@ function buildTrayContextMenu() {
         },
         { type: 'separator' },
         {
-            label: 'Quick Add Task...',
-            accelerator: 'CmdOrCtrl+N',
-            click: () => {
-                if (win && !win.isDestroyed()) {
-                    win.show()
-                    win.focus()
-                    win.webContents.send('focus-quick-add')
-                }
-            }
-        },
-        { type: 'separator' },
-        {
-            label: 'My Assigned Tasks',
-            click: () => {
-                if (win && !win.isDestroyed()) {
-                    win.show()
-                    win.focus()
-                    win.webContents.send('switch-tab', 'my-assigned')
-                }
-            }
-        },
-        {
-            label: 'My Watched Tasks',
-            click: () => {
-                if (win && !win.isDestroyed()) {
-                    win.show()
-                    win.focus()
-                    win.webContents.send('switch-tab', 'my-followed')
-                }
-            }
-        },
-        { type: 'separator' },
-        {
             label: 'Settings...',
             accelerator: 'CmdOrCtrl+,',
             click: () => {
