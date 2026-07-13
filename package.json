@@ -55,7 +55,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "jheroy",
+      "owner": "buluma",
       "repo": "Redmine-desktop",
       "releaseType": "release"
     },

@@ -279,7 +279,7 @@ function fetchLatestReleaseFromGitHub(): Promise<{ version: string; releaseDate:
             method: 'GET',
             protocol: 'https:',
             hostname: 'api.github.com',
-            path: '/repos/jheroy/Redmine-desktop/releases/latest',
+            path: '/repos/buluma/Redmine-desktop/releases/latest',
         });
 
         request.setHeader('User-Agent', 'Redmine-Desktop-App/1.0');
@@ -404,7 +404,7 @@ function setupIpcHandlers() {
             if (isDev) {
                 // In dev mode, just open the releases page
                 log.info('Dev mode: opening releases page instead of downloading');
-                await shell.openExternal('https://github.com/jheroy/Redmine-desktop/releases');
+                await shell.openExternal('https://github.com/buluma/Redmine-desktop/releases');
                 sendToRenderer('update-error', {
                     message: '开发模式下无法自动下载，已打开 GitHub Releases 页面'
                 });
@@ -415,7 +415,7 @@ function setupIpcHandlers() {
             if (process.platform === 'darwin' && latestUpdateInfo) {
                 const version = latestUpdateInfo.version;
                 const dmgFileName = `Redmine-${version}-arm64.dmg`;
-                const downloadUrl = `https://github.com/jheroy/Redmine-desktop/releases/download/v${version}/${dmgFileName}`;
+                const downloadUrl = `https://github.com/buluma/Redmine-desktop/releases/download/v${version}/${dmgFileName}`;
                 const downloadPath = path.join(app.getPath('downloads'), dmgFileName);
 
                 log.info(`macOS: Downloading DMG from ${downloadUrl}`);
@@ -436,7 +436,7 @@ function setupIpcHandlers() {
                 } catch (downloadError: any) {
                     log.error('Failed to download DMG:', downloadError);
                     // 下载失败时打开 releases 页面
-                    await shell.openExternal('https://github.com/jheroy/Redmine-desktop/releases/latest');
+                    await shell.openExternal('https://github.com/buluma/Redmine-desktop/releases/latest');
                     sendToRenderer('update-error', {
                         message: `下载失败，已打开下载页面: ${downloadError.message}`
                     });
@@ -517,7 +517,7 @@ function setupIpcHandlers() {
     // Open release page in browser
     ipcMain.handle('open-release-page', async () => {
         try {
-            await shell.openExternal('https://github.com/jheroy/Redmine-desktop/releases');
+            await shell.openExternal('https://github.com/buluma/Redmine-desktop/releases');
             return { success: true };
         } catch (error: any) {
             return {

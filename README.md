@@ -34,7 +34,7 @@ Redmine-Desktop provides a premium native-like experience for managing your Redm
 
 **📦 Download Pre-built Binaries**
 
-Pre-built binaries are available on the [Releases](https://github.com/jheroy/Redmine-desktop/releases) page.
+Pre-built binaries are available on the [Releases](https://github.com/buluma/Redmine-desktop/releases) page.
 
 **⚠️ macOS Installation Note**
 

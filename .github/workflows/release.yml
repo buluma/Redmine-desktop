@@ -125,7 +125,7 @@ jobs:
             echo "" >> release-notes.md
             echo "" >> release-notes.md
             echo "---" >> release-notes.md
-            echo "**完整更新日志**: [${PREV_TAG}...${CURRENT_TAG}](https://github.com/jheroy/Redmine-desktop/compare/${PREV_TAG}...${CURRENT_TAG})" >> release-notes.md
+            echo "**完整更新日志**: [${PREV_TAG}...${CURRENT_TAG}](https://github.com/buluma/Redmine-desktop/compare/${PREV_TAG}...${CURRENT_TAG})" >> release-notes.md
           else
             git log --pretty=format:"- %s (%h)" -10 >> release-notes.md
           fi
