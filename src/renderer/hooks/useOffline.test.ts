@@ -1,0 +1,100 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { renderHook, act } from '@testing-library/react'
+import { useOffline } from './useOffline'
+import * as OfflineQueue from '../services/OfflineQueue'
+
+// Mock OfflineQueue
+vi.mock('../services/OfflineQueue', () => ({
+    getPendingCount: vi.fn().mockResolvedValue(0),
+    clearStaleMutations: vi.fn().mockResolvedValue(0),
+    processQueue: vi.fn().mockResolvedValue({ succeeded: 0, failed: 0, remaining: 0 }),
+}))
+
+describe('useOffline', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        // Mock navigator.onLine
+        Object.defineProperty(navigator, 'onLine', { value: true, writable: true })
+    })
+
+    afterEach(() => {
+        vi.restoreAllMocks()
+    })
+
+    it('returns online status', () => {
+        const { result } = renderHook(() => useOffline())
+        expect(result.current.isOnline).toBe(true)
+    })
+
+    it('returns offline status when navigator.onLine is false', () => {
+        Object.defineProperty(navigator, 'onLine', { value: false })
+        const { result } = renderHook(() => useOffline())
+        expect(result.current.isOnline).toBe(false)
+    })
+
+    it('initializes pending count from queue', async () => {
+        vi.mocked(OfflineQueue.getPendingCount).mockResolvedValue(5)
+        
+        const { result } = renderHook(() => useOffline())
+        
+        // Wait for the async initialization
+        await act(async () => {
+            await new Promise(resolve => setTimeout(resolve, 0))
+        })
+        
+        expect(result.current.pendingCount).toBe(5)
+    })
+
+    it('refreshPendingCount updates the count', async () => {
+        vi.mocked(OfflineQueue.getPendingCount)
+            .mockResolvedValueOnce(0)
+            .mockResolvedValueOnce(3)
+        
+        const { result } = renderHook(() => useOffline())
+        
+        await act(async () => {
+            await result.current.refreshPendingCount()
+        })
+        
+        expect(result.current.pendingCount).toBe(3)
+    })
+
+    it('isProcessingQueue is initially false', () => {
+        const { result } = renderHook(() => useOffline())
+        expect(result.current.isProcessingQueue).toBe(false)
+    })
+})
+
+describe('useOffline - Online/Offline Events', () => {
+    beforeEach(() => {
+        vi.clearAllMocks()
+        Object.defineProperty(navigator, 'onLine', { value: true, writable: true })
+    })
+
+    it('updates isOnline when going offline', async () => {
+        const { result } = renderHook(() => useOffline())
+        
+        expect(result.current.isOnline).toBe(true)
+        
+        act(() => {
+            window.dispatchEvent(new Event('offline'))
+        })
+        
+        expect(result.current.isOnline).toBe(false)
+    })
+
+    it('updates isOnline when coming back online', async () => {
+        Object.defineProperty(navigator, 'onLine', { value: false })
+        
+        const { result } = renderHook(() => useOffline())
+        
+        expect(result.current.isOnline).toBe(false)
+        
+        act(() => {
+            Object.defineProperty(navigator, 'onLine', { value: true })
+            window.dispatchEvent(new Event('online'))
+        })
+        
+        expect(result.current.isOnline).toBe(true)
+    })
+})
