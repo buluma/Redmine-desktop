@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition } fr
 import { RedmineService } from '../services/RedmineService';
 import { Project, Issue, Version, User, IssueStatus, IssuePriority } from '../models/redmine';
 import { getAssignedWatchers, getAssignedWatchersField, createAssignedWatchersUpdate } from '../utils/assignedWatchers';
+import { isVerified, isDevComplete, isComplete, getPriorityUrgency } from '../constants/status';
 
 export function useAppViewModel() {
     const [redmineURL, setRedmineURL] = useState(localStorage.getItem('redmineURL') || '');
@@ -525,9 +526,9 @@ export function useAppViewModel() {
                 const vid = i.fixed_version.id;
                 if (!counts[vid]) counts[vid] = { dev: 0, done: 0, verified: 0 };
                 const statusName = i.status.name;
-                if (statusName.includes('验证完成')) {
+                if (isVerified(statusName)) {
                     counts[vid].verified++;
-                } else if (statusName.includes('开发完成')) {
+                } else if (isDevComplete(statusName)) {
                     counts[vid].done++;
                 } else {
                     counts[vid].dev++;
@@ -542,9 +543,9 @@ export function useAppViewModel() {
         allIssues.forEach(i => {
             if (followedIssueIds.has(i.id)) {
                 const statusName = i.status.name;
-                if (statusName.includes('验证完成')) {
+                if (isVerified(statusName)) {
                     sc.verified++;
-                } else if (statusName.includes('开发完成')) {
+                } else if (isDevComplete(statusName)) {
                     sc.done++;
                 } else {
                     sc.dev++;
@@ -560,9 +561,9 @@ export function useAppViewModel() {
         allIssues.forEach(i => {
             if (i.assigned_to?.id === currentUser.id) {
                 const statusName = i.status.name;
-                if (statusName.includes('验证完成')) {
+                if (isVerified(statusName)) {
                     sc.verified++;
-                } else if (statusName.includes('开发完成')) {
+                } else if (isDevComplete(statusName)) {
                     sc.done++;
                 } else {
                     sc.dev++;
@@ -574,9 +575,13 @@ export function useAppViewModel() {
 
     useEffect(() => {
         if (service && isConfigured) {
+            // Sync saved URL to main process on startup for cert bypass
+            if (redmineURL) {
+                (window as any).ipcRenderer?.send('save-redmine-url', redmineURL);
+            }
             loadInitialData();
         }
-    }, [service, isConfigured, loadInitialData]);
+    }, [service, isConfigured, loadInitialData, redmineURL]);
 
     useEffect(() => {
         if (isConfigured && selectedProjectId && selectedProjectId > 0) {
@@ -631,26 +636,20 @@ export function useAppViewModel() {
         if (showBadge) {
             const myIssues = allIssues.filter(i =>
                 i.assigned_to?.id === currentUser.id &&
-                !i.status.name.includes('完成') &&
-                !i.status.name.includes('关闭')
+                !isComplete(i.status.name)
             );
             const myUnfinishedCount = myIssues.length;
 
             // Determine urgency based on priority: if any high-urgency issues, show red; if any medium, show orange; else green
             let urgency: 'none' | 'low' | 'medium' | 'high' = 'low'
             if (myUnfinishedCount > 0) {
-                const hasHighPriority = myIssues.some(i => {
-                    const pName = (i.priority?.name || '').toLowerCase()
-                    return pName.includes('urgent') || pName.includes('high') || pName.includes('immediate')
-                })
-                const hasMediumPriority = myIssues.some(i => {
-                    const pName = (i.priority?.name || '').toLowerCase()
-                    return pName.includes('medium') || pName.includes('normal')
-                })
-
-                if (hasHighPriority) urgency = 'high'
-                else if (hasMediumPriority) urgency = 'medium'
-                else urgency = 'low'
+                const highestUrgency = myIssues.reduce<'low' | 'medium' | 'high'>((acc, i) => {
+                    const u = getPriorityUrgency(i.priority?.name || '')
+                    if (u === 'high') return 'high'
+                    if (u === 'medium' && acc !== 'high') return 'medium'
+                    return acc
+                }, 'low')
+                urgency = highestUrgency
             }
 
             console.log('Badge update (reactive):', { count: myUnfinishedCount, urgency });
@@ -662,12 +661,40 @@ export function useAppViewModel() {
 
     const saveSettings = async (url: string, key: string) => {
         localStorage.setItem('redmineURL', url);
-        localStorage.setItem('redmineAPIKey', key);
+        // Store API key securely via main process (safeStorage encryption)
+        if (key) {
+            await window.secureStore?.store('redmineAPIKey', key);
+            // Keep a flag in localStorage so we know to load from secure storage
+            localStorage.setItem('hasSecureKey', 'true');
+        } else {
+            await window.secureStore?.remove('redmineAPIKey');
+            localStorage.removeItem('hasSecureKey');
+        }
         setRedmineURL(url);
         setRedmineAPIKey(key);
         setIsConfigured(true);
+        // Sync URL to main process for scoped certificate bypass
+        (window as any).ipcRenderer?.send('save-redmine-url', url);
         // loadInitialData will be triggered by useEffect
     };
+
+    // On mount: try to load API key from secure storage
+    useEffect(() => {
+        const loadSecureKey = async () => {
+            if (localStorage.getItem('hasSecureKey') === 'true') {
+                try {
+                    const secureKey = await window.secureStore?.retrieve('redmineAPIKey');
+                    if (secureKey && !redmineAPIKey) {
+                        setRedmineAPIKey(secureKey);
+                        setIsConfigured(!!(redmineURL && secureKey));
+                    }
+                } catch (e) {
+                    console.warn('Failed to load secure key:', e);
+                }
+            }
+        };
+        loadSecureKey();
+    }, []); // Run once on mount
 
     const fetchIssueDetail = useCallback(async (id: number) => {
         if (!service) return;
@@ -1080,7 +1107,7 @@ export function useAppViewModel() {
             // But they respect the "Hide Verified" toggle
             if (followedIssueIds.has(i.id)) {
                 const shouldHideVerified = hideVerifiedInFollowed;
-                if (!shouldHideVerified || !i.status.name.includes('验证完成')) {
+                if (!shouldHideVerified || !isVerified(i.status.name)) {
                     addToBucket('-2', i);
                 }
             }
@@ -1088,7 +1115,7 @@ export function useAppViewModel() {
             // 3. My Assigned Bucket (-3)
             if (currentUser && i.assigned_to?.id === currentUser.id) {
                 const shouldHideVerified = hideVerifiedInAssigned;
-                if (!shouldHideVerified || !i.status.name.includes('验证完成')) {
+                if (!shouldHideVerified || !isVerified(i.status.name)) {
                     addToBucket('-3', i);
                 }
             }

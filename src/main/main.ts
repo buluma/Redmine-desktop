@@ -1,6 +1,10 @@
-import { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, Notification, safeStorage } from 'electron'
 import path from 'node:path'
 import { initUpdater } from './updater'
+import Store from 'electron-store'
+
+// Persistent store for main-process settings (Redmine URL, secure keys, etc.)
+const mainStore = new Store<Record<string, string>>()
 
 // The built directory structure
 //
@@ -14,12 +18,31 @@ import { initUpdater } from './updater'
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(process.env.DIST, '../public')
 
-// Disable CORS and certificate errors for internal Redmine servers
-app.commandLine.appendSwitch('ignore-certificate-errors')
+// Keep site isolation disabled (needed for cross-origin image fetching from Redmine)
 app.commandLine.appendSwitch('disable-site-isolation-trials')
 
 // Better scrolling performance
 app.commandLine.appendSwitch('enable-smooth-scrolling')
+
+// ── Scoped certificate-error handler ───────────────────────────────────────
+// Instead of ignoring ALL certificate errors globally, we selectively accept
+// self-signed certs only for the configured Redmine host.
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+    const redmineHost = mainStore.get('redmineHost')
+    if (redmineHost) {
+        try {
+            const parsed = new URL(url)
+            if (parsed.hostname === redmineHost) {
+                // Accept self-signed cert for the configured Redmine host
+                event.preventDefault()
+                callback(true)
+                return
+            }
+        } catch { /* malformed URL, fall through to reject */ }
+    }
+    // Reject all other certificate errors
+    callback(false)
+})
 
 
 let win: BrowserWindow | null
@@ -449,6 +472,66 @@ ipcMain.on('open-external', (_, url) => {
     const { shell } = require('electron');
     shell.openExternal(url);
 });
+
+// ── Settings IPC ───────────────────────────────────────────────────────────
+// Sync the Redmine URL from renderer → main so the certificate handler knows
+// which host to accept self-signed certs for.
+ipcMain.on('save-redmine-url', (_, url: string) => {
+    try {
+        const host = new URL(url).hostname
+        mainStore.set('redmineHost', host)
+        console.log(`[main] Redmine host registered for cert bypass: ${host}`)
+    } catch {
+        console.warn('[main] Invalid Redmine URL, skipping cert host registration')
+    }
+})
+
+// ── Secure credential storage ──────────────────────────────────────────────
+// Use Electron's safeStorage to encrypt API keys at rest.
+// Falls back to base64 (obfuscation only) if safeStorage is unavailable.
+
+ipcMain.handle('secure-store', async (_, { key, value }: { key: string; value: string }) => {
+    try {
+        if (safeStorage.isEncryptionAvailable()) {
+            const encrypted = safeStorage.encryptString(value)
+            mainStore.set(`secure:${key}`, encrypted.toString('base64'))
+        } else {
+            // Fallback: base64 obfuscation (not true encryption)
+            mainStore.set(`secure:${key}`, Buffer.from(value).toString('base64'))
+        }
+        return true
+    } catch (e: any) {
+        console.error(`[main] Failed to store secure key '${key}':`, e)
+        return false
+    }
+})
+
+ipcMain.handle('secure-retrieve', async (_, { key }: { key: string }) => {
+    try {
+        const stored = mainStore.get(`secure:${key}`) as string | undefined
+        if (!stored) return null
+
+        if (safeStorage.isEncryptionAvailable()) {
+            const buffer = Buffer.from(stored, 'base64')
+            return safeStorage.decryptString(buffer)
+        } else {
+            // Fallback: base64 decode
+            return Buffer.from(stored, 'base64').toString()
+        }
+    } catch (e: any) {
+        console.error(`[main] Failed to retrieve secure key '${key}':`, e)
+        return null
+    }
+})
+
+ipcMain.handle('secure-delete', async (_, { key }: { key: string }) => {
+    try {
+        mainStore.delete(`secure:${key}`)
+        return true
+    } catch {
+        return false
+    }
+})
 
 ipcMain.handle('save-file', async (_, { data, filename }) => {
     const { dialog } = require('electron');

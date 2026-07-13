@@ -92,3 +92,13 @@ contextBridge.exposeInMainWorld('trayControl', {
         ipcRenderer.send('update-tray-urgency', urgency),
     showWindow: () => ipcRenderer.send('show-window'),
 })
+
+// Expose secure credential storage API
+contextBridge.exposeInMainWorld('secureStore', {
+    store: (key: string, value: string): Promise<boolean> =>
+        ipcRenderer.invoke('secure-store', { key, value }),
+    retrieve: (key: string): Promise<string | null> =>
+        ipcRenderer.invoke('secure-retrieve', { key }),
+    remove: (key: string): Promise<boolean> =>
+        ipcRenderer.invoke('secure-delete', { key }),
+})
