@@ -1,82 +1,81 @@
-# Redmine-Desktop 开发记录 (AGENTS.md)
+# Redmine-Desktop Development Log (AGENTS.md)
 
-本项目是一个跨平台的 Redmine 客户端，旨在提供流畅、美观且高效的任务管理体验。本项目由旧版的 Swift/SwiftUI 版本迁移至目前的 Electron + React + Vite 架构。
+This project is a cross-platform Redmine client designed to provide a smooth, beautiful, and efficient task management experience. The project was migrated from a legacy Swift/SwiftUI version to the current Electron + React + Vite architecture.
 
-## 技术栈
-- **核心**: Electron, React (Functional Components + Hooks)
-- **状态管理**: 自定义 `useAppViewModel` (响应式状态管理)
-- **构建工具**: Vite, TypeScript
-- **打包**: electron-builder
-- **样式**: Vanilla CSS (注重性能与 GPU 加速)
+## Tech Stack
+- **Core**: Electron, React (Functional Components + Hooks)
+- **State Management**: Custom `useAppViewModel` (Reactive State Management)
+- **Build Tool**: Vite, TypeScript
+- **Packaging**: electron-builder
+- **Styling**: Vanilla CSS (Focused on Performance & GPU Acceleration)
 
-## 开发里程碑与历史
+## Development Milestones & History
 
-### v1.0.0 - v1.0.3: 基础构建与性能奠基
-- **核心逻辑迁移**: 从原生 Swift 逻辑完整迁移至 TypeScript 驱动的服务层。
-- **性能优化**:
-    - 引入 `content-visibility: auto` 优化长列表渲染。
-    - 使用 `transform` 替代 `top/left` 实现选择指示器的 GPU 加速动画。
-    - 实现 `AuthenticatedImage` 缓存机制，减少冗余 API 请求。
-- **UI 增强**:
-    - 实现侧边栏项目/版本列表的平滑滑动指示器。
-    - 支持可调节宽度的响应式面板（Sidebar & Issue List Ratio）。
-    - 增加顶部标题栏拖动区域。
+### v1.0.0 - v1.0.3: Foundation & Performance Baseline
+- **Core Logic Migration**: Complete migration from native Swift logic to TypeScript-driven service layer.
+- **Performance Optimizations**:
+    - Introduced `content-visibility: auto` to optimize long-list rendering.
+    - Used `transform` instead of `top/left` for GPU-accelerated selection indicator animations.
+    - Implemented `AuthenticatedImage` caching mechanism to reduce redundant API requests.
+- **UI Enhancements**:
+    - Implemented smooth sliding indicators for sidebar project/version lists.
+    - Added adjustable-width responsive panels (Sidebar & Issue List Ratio).
+    - Added top title bar drag region.
 
-### v1.0.4: 分组与过滤器增强
-- **任务分组**: 增加“按状态”和“按人员”分组切换功能。
-- **动态过滤器**: 过滤器选项根据分组模式动态调整（如：按状态分组时显示指派人过滤器）。
-- **同步指示器**: 修复了窗口缩放时选择指示器位置不更新的 Bug。
+### v1.0.4: Grouping & Filter Enhancements
+- **Issue Grouping**: Added "Group by Status" and "Group by Assignee" toggle functionality.
+- **Dynamic Filters**: Filter options adapt dynamically based on grouping mode (e.g., show assignee filter when grouping by status).
+- **Sync Indicator**: Fixed bug where selection indicator position didn't update on window resize.
 
-### v1.0.5 - v1.0.7: 视觉特效 (Transparency & Vibrancy)
-- **macOS Vibrancy**: 引入原生毛玻璃效果 (`vibrancy: 'under-window'`)。
-- **玻璃态 UI**: 优化透明模式下的 `issue-item` 背景，使其呈现更通透的 Glassmorphism 效果。
-- **Light 模式优化**: 针对浅色模式的透明效果进行深度调优，降低灰蒙蒙的感官，提升通透度。
+### v1.0.5 - v1.0.7: Visual Effects (Transparency & Vibrancy)
+- **macOS Vibrancy**: Introduced native frosted glass effect (`vibrancy: 'under-window'`).
+- **Glassmorphism UI**: Optimized `issue-item` backgrounds in transparent mode for a more translucent Glassmorphism effect.
+- **Light Mode Optimization**: Deep-tuned transparency effects for light mode, reducing gray haze and improving clarity.
 
-### v1.0.8 (Current): 稳定性与主题适配
-- **策略调整**: 考虑到浅色模式毛玻璃效果的局限性，决定在 **Light 模式下自动禁用透明效果**，保持稳定一致的纯色背景。
-- **工程化**: 完善 `.gitignore` 文件，过滤不必要的二进制与构建产物。
+### v1.0.8 (Current): Stability & Theme Adaptation
+- **Strategy Change**: Due to limitations of frosted glass in light mode, decided to **automatically disable transparency in Light Mode**, maintaining a stable, consistent solid background.
+- **Engineering**: Improved `.gitignore` to filter unnecessary binaries and build artifacts.
 
-### v1.0.10: 自动更新功能
-- **核心功能**: 基于 GitHub Releases 的自动更新系统，使用 `electron-updater` 实现。
-- **更新检查**: 应用启动后 3 秒自动检查更新（仅生产环境）。
-- **更新 UI**: 新增 `UpdaterModal` 组件，提供美观的更新界面：
-    - 显示当前版本和新版本信息
-    - 下载进度条（实时显示速度和进度）
-    - 支持手动检查、下载、安装更新
-    - 一键打开 GitHub Releases 页面
-- **集成入口**: 设置面板新增"检查更新"按钮。
-- **日志系统**: 使用 `electron-log` 记录更新过程。
+### v1.0.10: Auto-Update Feature
+- **Core Feature**: Auto-update system based on GitHub Releases, implemented with `electron-updater`.
+- **Update Check**: Automatic update check 3 seconds after app launch (production only).
+- **Update UI**: Added `UpdaterModal` component with a polished update interface:
+    - Displays current and new version info
+    - Download progress bar (real-time speed and progress)
+    - Supports manual check, download, and install
+    - One-click open GitHub Releases page
+- **Integration Entry**: Added "Check for Updates" button in Settings panel.
+- **Logging**: Uses `electron-log` to record update process.
 
-## 关键技术细节 (供 Agent 参考)
+## Key Technical Details (For Agent Reference)
 
-### 1. 指示器同步逻辑
-由于窗口缩放、文字折行会导致元素高度瞬间跳变，指示器的更新采用了多帧同步策略：
+### 1. Indicator Sync Logic
+Due to window resizing and text wrapping causing instant element height jumps, the indicator update uses a multi-frame sync strategy:
 ```typescript
 const sync = () => {
-    update(); // 计算元素位置并 setStyle
-    if (count < 15) { // 持续同步 15 帧确保稳定
+    update(); // Calculate element position and setStyle
+    if (count < 15) { // Continuous sync for 15 frames to ensure stability
         count++;
         rafId = requestAnimationFrame(sync);
     }
 };
 ```
 
-### 2. 状态管理 (ViewModel)
-所有业务逻辑封装在 `src/renderer/hooks/useAppViewModel.ts`。UI 通过 `vm` 访问数据和方法。
-- 关键状态：`selectedProjectId`, `selectedVersionId`, `groupedIssues` (带缓存)。
+### 2. State Management (ViewModel)
+All business logic is encapsulated in `src/renderer/hooks/useAppViewModel.ts`. UI accesses data and methods via `vm`.
+- Key State: `selectedProjectId`, `selectedVersionId`, `groupedIssues` (with caching).
 
-### 3. 透明模式控制
-透明模式依赖 `localStorage.getItem('enableTransparency')` 和 `isMac` 环境。
-CSS 类名控制：`.transparency-enabled` (仅在 Dark 模式有效)。
+### 3. Transparency Mode Control
+Transparency mode depends on `localStorage.getItem('enableTransparency')` and `isMac` environment.
+CSS Class Control: `.transparency-enabled` (effective only in Dark Mode).
 
-### 4. 自动更新架构
-- **主进程模块**: `src/main/updater.ts` - 处理 GitHub Release 检查、下载、安装。
-- **Preload 桥接**: `src/main/preload.ts` - 暴露 `window.updater` API。
-- **渲染进程 UI**: `src/renderer/components/UpdaterModal.tsx` - 更新界面组件。
-- **配置**: `package.json` build.publish 配置 GitHub provider。
+### 4. Auto-Update Architecture
+- **Main Process Module**: `src/main/updater.ts` - Handles GitHub Release check, download, install.
+- **Preload Bridge**: `src/main/preload.ts` - Exposes `window.updater` API.
+- **Renderer UI**: `src/renderer/components/UpdaterModal.tsx` - Update interface component.
+- **Config**: `package.json` build.publish configured with GitHub provider.
 
-## 待办事项 / 未来优化
-- [ ] 增加更多自定义过滤条件。
-- [ ] 优化离线存储机制。
-- [ ] Windows 平台的 Acrylic/Mica 特效探索 (类似 macOS 的模糊效果)。
-
+## TODO / Future Optimizations
+- [ ] Add more custom filter conditions.
+- [ ] Optimize offline storage mechanism.
+- [ ] Explore Windows Acrylic/Mica effects (similar to macOS blur effects).

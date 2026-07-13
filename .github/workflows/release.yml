@@ -3,14 +3,14 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*'  # 当 push v开头的 tag 时触发，例如 v1.0.11
+      - 'v*'  # Trigger when pushing tags starting with v, e.g. v1.0.11
 
-# 授权 workflow 写入权限
+# Grant workflow write permissions
 permissions:
   contents: write
 
 jobs:
-  # 构建 macOS 版本 (同时构建 arm64 和 x64)
+  # Build macOS version (arm64 only)
   build-macos:
     runs-on: macos-latest
     
@@ -27,7 +27,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      # 只构建 arm64
+      # Build arm64 only
       - name: Build Electron app
         run: npm run build -- --mac --arm64
         env:
@@ -44,7 +44,7 @@ jobs:
             release/*/*.blockmap
             release/*/latest-mac.yml
 
-  # 构建 Windows 版本
+  # Build Windows version
   build-windows:
     runs-on: windows-latest
     
@@ -84,7 +84,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取完整 git 历史用于生成 release notes
+          fetch-depth: 0  # Fetch full git history for generating release notes
       
       - name: Download macOS artifacts
         uses: actions/download-artifact@v4
@@ -109,15 +109,15 @@ jobs:
       
       - name: Generate Release Notes
         run: |
-          # 获取上一个 tag
+          # Get previous tag
           PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
           CURRENT_TAG=${{ github.ref_name }}
           
           echo "Previous tag: $PREV_TAG"
           echo "Current tag: $CURRENT_TAG"
           
-          # 生成 release notes
-          echo "## 更新内容" > release-notes.md
+          # Generate release notes
+          echo "## Changes" > release-notes.md
           echo "" >> release-notes.md
           
           if [ -n "$PREV_TAG" ]; then
@@ -125,7 +125,7 @@ jobs:
             echo "" >> release-notes.md
             echo "" >> release-notes.md
             echo "---" >> release-notes.md
-            echo "**完整更新日志**: [${PREV_TAG}...${CURRENT_TAG}](https://github.com/buluma/Redmine-desktop/compare/${PREV_TAG}...${CURRENT_TAG})" >> release-notes.md
+            echo "**Full Changelog**: [${PREV_TAG}...${CURRENT_TAG}](https://github.com/buluma/Redmine-desktop/compare/${PREV_TAG}...${CURRENT_TAG})" >> release-notes.md
           else
             git log --pretty=format:"- %s (%h)" -10 >> release-notes.md
           fi
