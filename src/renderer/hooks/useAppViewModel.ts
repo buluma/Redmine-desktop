@@ -629,15 +629,34 @@ export function useAppViewModel() {
         if (!currentUser) return;
 
         if (showBadge) {
-            const myUnfinishedCount = allIssues.filter(i =>
+            const myIssues = allIssues.filter(i =>
                 i.assigned_to?.id === currentUser.id &&
                 !i.status.name.includes('完成') &&
                 !i.status.name.includes('关闭')
-            ).length;
-            console.log('Badge update (reactive):', myUnfinishedCount);
-            (window as any).ipcRenderer?.send('update-badge', myUnfinishedCount);
+            );
+            const myUnfinishedCount = myIssues.length;
+
+            // Determine urgency based on priority: if any high-urgency issues, show red; if any medium, show orange; else green
+            let urgency: 'none' | 'low' | 'medium' | 'high' = 'low'
+            if (myUnfinishedCount > 0) {
+                const hasHighPriority = myIssues.some(i => {
+                    const pName = (i.priority?.name || '').toLowerCase()
+                    return pName.includes('urgent') || pName.includes('high') || pName.includes('immediate')
+                })
+                const hasMediumPriority = myIssues.some(i => {
+                    const pName = (i.priority?.name || '').toLowerCase()
+                    return pName.includes('medium') || pName.includes('normal')
+                })
+
+                if (hasHighPriority) urgency = 'high'
+                else if (hasMediumPriority) urgency = 'medium'
+                else urgency = 'low'
+            }
+
+            console.log('Badge update (reactive):', { count: myUnfinishedCount, urgency });
+            (window as any).ipcRenderer?.send('update-badge', { count: myUnfinishedCount, urgency });
         } else {
-            (window as any).ipcRenderer?.send('update-badge', 0);
+            (window as any).ipcRenderer?.send('update-badge', { count: 0, urgency: 'none' });
         }
     }, [allIssues, showBadge, currentUser]);
 

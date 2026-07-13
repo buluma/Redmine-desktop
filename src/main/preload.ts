@@ -85,3 +85,10 @@ contextBridge.exposeInMainWorld('updater', {
     setAutoUpdateSettings: (settings: { enabled?: boolean; interval?: number }) =>
         ipcRenderer.invoke('set-auto-update-settings', settings),
 })
+
+// Expose tray/window control API
+contextBridge.exposeInMainWorld('trayControl', {
+    setUrgency: (urgency: 'none' | 'low' | 'medium' | 'high') =>
+        ipcRenderer.send('update-tray-urgency', urgency),
+    showWindow: () => ipcRenderer.send('show-window'),
+})

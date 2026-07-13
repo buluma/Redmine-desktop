@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, Tray, nativeImage, Notification } from 'electron'
 import path from 'node:path'
 import { initUpdater } from './updater'
 
@@ -24,45 +24,195 @@ app.commandLine.appendSwitch('enable-smooth-scrolling')
 
 let win: BrowserWindow | null
 let tray: Tray | null = null
+let trayMenu: Menu | null = null
+let currentBadgeCount = 0
+let currentBadgeUrgency: 'none' | 'low' | 'medium' | 'high' = 'none'
+
+// Cached tray icons
+type TrayIconVariant = 'gray' | 'red' | 'orange' | 'green'
+const trayIconCache: Record<TrayIconVariant, Electron.NativeImage> = {} as Record<TrayIconVariant, Electron.NativeImage>
 
 // 🚧 Use ['ENV_NAME'] avoid vite:define dev replacement
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
-function createTray() {
-    // Load tray icon from file
-    // macOS will automatically use @2x version for Retina displays
-    const iconPath = path.join(process.env.VITE_PUBLIC || path.join(__dirname, '../public'), 'trayTemplate.png');
+function generateColoredIcon(baseColor: string): Electron.NativeImage {
+    // Generate a colored version of the tray icon by modifying the SVG inline
+    const size = process.platform === 'darwin' ? 16 : 32
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="${size}" height="${size}">
+  <g fill="${baseColor}">
+    <path d="M5,10 C3,13 3,17 5,19 L7,21 C8,22 9,23 9,25 L9,28 C9,29 10,30 11,30 C12,30 13,29 13,28 L13,25 C13,23 14,22 15,21 L17,19 C19,17 19,13 17,11 L15,9 C13,7 11,7 9,9 Z"/>
+    <circle cx="13" cy="10" r="5"/>
+    <circle cx="14.5" cy="8.5" r="1.3" fill="${baseColor === '#808080' ? '#ccc' : 'white'}"/>
+    <circle cx="15" cy="8.2" r="0.7" fill="#2d2d2d"/>
+    <path d="M17,10 L22,11 L17,12 Z" fill="${baseColor === '#808080' ? '#999' : '#f4a261'}"/>
+  </g>
+</svg>`
+    const img = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`)
+    if (process.platform === 'darwin') {
+        img.setTemplateImage(true)
+    }
+    return img
+}
 
-    console.log('Loading tray icon from:', iconPath);
+function cacheTrayIcons() {
+    trayIconCache['gray'] = generateColoredIcon('#808080')
+    trayIconCache['green'] = generateColoredIcon('#30d158')
+    trayIconCache['orange'] = generateColoredIcon('#ff9f0a')
+    trayIconCache['red'] = generateColoredIcon('#ff453a')
+}
 
-    const icon = nativeImage.createFromPath(iconPath);
+function buildTrayContextMenu() {
+    const isDev = !app.isPackaged
+    trayMenu = Menu.buildFromTemplate([
+        {
+            label: 'Show Redmine',
+            click: () => {
+                if (!win || win.isDestroyed()) {
+                    createWindow()
+                } else {
+                    win.show()
+                    win.focus()
+                }
+            }
+        },
+        { type: 'separator' },
+        {
+            label: 'Quick Add Task...',
+            accelerator: 'CmdOrCtrl+N',
+            click: () => {
+                if (win && !win.isDestroyed()) {
+                    win.show()
+                    win.focus()
+                    win.webContents.send('focus-quick-add')
+                }
+            }
+        },
+        { type: 'separator' },
+        {
+            label: 'My Assigned Tasks',
+            click: () => {
+                if (win && !win.isDestroyed()) {
+                    win.show()
+                    win.focus()
+                    win.webContents.send('switch-tab', 'my-assigned')
+                }
+            }
+        },
+        {
+            label: 'My Watched Tasks',
+            click: () => {
+                if (win && !win.isDestroyed()) {
+                    win.show()
+                    win.focus()
+                    win.webContents.send('switch-tab', 'my-followed')
+                }
+            }
+        },
+        { type: 'separator' },
+        {
+            label: 'Settings...',
+            accelerator: 'CmdOrCtrl+,',
+            click: () => {
+                if (win && !win.isDestroyed()) {
+                    win.show()
+                    win.focus()
+                    win.webContents.send('show-settings')
+                }
+            }
+        },
+        { type: 'separator' },
+        {
+            label: 'Check for Updates',
+            click: () => {
+                if (win && !win.isDestroyed()) {
+                    win.show()
+                    win.focus()
+                    win.webContents.send('show-updater')
+                }
+            }
+        },
+        ...(isDev ? [
+            { type: 'separator' as const },
+            { label: 'Toggle DevTools', accelerator: 'CmdOrCtrl+Alt+I', role: 'toggleDevTools' as const }
+        ] : []),
+        { type: 'separator' },
+        { role: 'quit' }
+    ])
+}
 
-    console.log('Tray icon loaded, size:', icon.getSize(), 'isEmpty:', icon.isEmpty());
+function updateTrayAppearance() {
+    if (!tray || tray.isDestroyed()) return
 
-    if (icon.isEmpty()) {
-        console.error('Failed to load tray icon from:', iconPath);
-        // Fallback: create tray without icon (will only show title)
-        tray = new Tray(nativeImage.createEmpty());
-    } else {
-        icon.setTemplateImage(true);
-        tray = new Tray(icon);
+    // Choose icon color based on urgency
+    let variant: TrayIconVariant = 'gray'
+    if (currentBadgeCount > 0) {
+        if (currentBadgeUrgency === 'high') variant = 'red'
+        else if (currentBadgeUrgency === 'medium') variant = 'orange'
+        else variant = 'green'
     }
 
-    tray.setToolTip('Redmine');
-    console.log('Tray created successfully');
+    const cached = trayIconCache[variant]
+    if (cached && !cached.isEmpty()) {
+        try {
+            tray.setImage(cached)
+        } catch (e) {
+            // Silently ignore if the image is invalid
+        }
+    }
+
+    // Set title/badge text
+    if (currentBadgeCount > 0) {
+        const displayCount = currentBadgeCount > 99 ? '99+' : String(currentBadgeCount)
+        tray.setTitle(displayCount)
+        tray.setToolTip(`Redmine: ${currentBadgeCount} issue${currentBadgeCount !== 1 ? 's' : ''} assigned`)
+    } else {
+        tray.setTitle('')
+        tray.setToolTip('Redmine - No pending issues')
+    }
+
+    // Update context menu if it exists
+    if (trayMenu) {
+        tray.setContextMenu(trayMenu)
+    }
+}
+
+function createTray() {
+    // Cache all colored icon variants
+    cacheTrayIcons()
+
+    // Build context menu
+    buildTrayContextMenu()
+
+    // Start with gray (inactive) icon
+    const icon = trayIconCache['gray']
+
+    if (!icon || icon.isEmpty()) {
+        console.error('Failed to create tray icon, using empty fallback')
+        tray = new Tray(nativeImage.createEmpty())
+    } else {
+        tray = new Tray(icon)
+    }
+
+    tray.setToolTip('Redmine')
+
+    if (trayMenu) {
+        tray.setContextMenu(trayMenu)
+    }
 
     tray.on('click', () => {
-        // Check if window exists and is not destroyed
         if (!win || win.isDestroyed()) {
-            createWindow();
-            return;
+            createWindow()
+            return
         }
         if (win.isVisible()) {
             win.hide()
         } else {
             win.show()
+            win.focus()
         }
     })
+
+    updateTrayAppearance()
 }
 
 
@@ -295,20 +445,36 @@ app.whenReady().then(() => {
     }
 })
 
-ipcMain.on('update-badge', (_, count: number) => {
-    console.log('Received update-badge:', count);
+ipcMain.on('update-badge', (_, data: { count: number; urgency?: 'none' | 'low' | 'medium' | 'high' }) => {
+    // Support both old format (just a number) and new format (object with count + urgency)
+    const count = typeof data === 'number' ? data : data.count
+    const urgency = typeof data === 'object' ? (data.urgency || 'low') : 'low'
+
+    currentBadgeCount = count
+    currentBadgeUrgency = count > 0 ? urgency : 'none'
+
+    console.log('Received update-badge:', { count, urgency: currentBadgeUrgency });
+
     if (count > 0) {
         app.setBadgeCount(count)
-        if (tray && !tray.isDestroyed()) {
-            tray.setTitle(count.toString())
-            tray.setToolTip(`Redmine: ${count} unfinished issues`)
-        }
     } else {
         app.setBadgeCount(0)
-        if (tray && !tray.isDestroyed()) {
-            tray.setTitle('')
-            tray.setToolTip('Redmine')
-        }
+    }
+
+    updateTrayAppearance()
+})
+
+ipcMain.on('update-tray-urgency', (_, urgency: 'none' | 'low' | 'medium' | 'high') => {
+    currentBadgeUrgency = urgency
+    updateTrayAppearance()
+})
+
+ipcMain.on('show-window', () => {
+    if (win && !win.isDestroyed()) {
+        win.show()
+        win.focus()
+    } else {
+        createWindow()
     }
 })
 
