@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import * as OfflineQueue from '../services/OfflineQueue'
-import { QueuedMutation } from '../services/OfflineQueue'
+import { QueuedMutation, UpdateIssueBody } from '../services/OfflineQueue'
 import { detectConflict, ConflictInfo, ConflictResolution } from '../services/ConflictResolver'
 import { RedmineService } from '../services/RedmineService'
 import { Issue } from '../models/redmine'
@@ -100,22 +100,22 @@ export function useOffline(
     ): Promise<void> => {
         if (!service) return
 
-        if (resolution === 'server') {
+        if (resolution.resolution === 'server') {
             // Discard local changes, just remove from queue
             await OfflineQueue.removeMutation(mutation.id!)
             return
         }
 
-        if (resolution === 'local') {
+        if (resolution.resolution === 'local') {
             // Apply local changes (client wins)
             await executeMutation(mutation)
             await OfflineQueue.removeMutation(mutation.id!)
             return
         }
 
-        if (resolution === 'merge' && resolution.mergedData) {
+        if (resolution.resolution === 'merge' && resolution.mergedData) {
             // Apply merged data
-            await service.updateIssue(mutation.issueId, resolution.mergedData)
+            await service.updateIssue(mutation.issueId, resolution.mergedData as UpdateIssueBody)
             await OfflineQueue.removeMutation(mutation.id!)
             return
         }

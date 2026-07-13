@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useOffline } from './useOffline'
 import * as OfflineQueue from '../services/OfflineQueue'
+import { Issue } from '../models/redmine'
 
 // Mock OfflineQueue
 vi.mock('../services/OfflineQueue', () => ({
@@ -9,6 +10,18 @@ vi.mock('../services/OfflineQueue', () => ({
     clearStaleMutations: vi.fn().mockResolvedValue(0),
     processQueue: vi.fn().mockResolvedValue({ succeeded: 0, failed: 0, remaining: 0 }),
 }))
+
+// Mock service
+const mockService = {
+    updateIssue: vi.fn().mockResolvedValue({}),
+} as any
+
+// Mock fetchIssueDetail
+const mockFetchIssueDetail = vi.fn().mockResolvedValue({
+    id: 1,
+    status: { id: 1, name: 'New' },
+    priority: { id: 1, name: 'Normal' },
+} as Issue)
 
 describe('useOffline', () => {
     beforeEach(() => {
@@ -22,20 +35,20 @@ describe('useOffline', () => {
     })
 
     it('returns online status', () => {
-        const { result } = renderHook(() => useOffline())
+        const { result } = renderHook(() => useOffline(mockService, mockFetchIssueDetail))
         expect(result.current.isOnline).toBe(true)
     })
 
     it('returns offline status when navigator.onLine is false', () => {
         Object.defineProperty(navigator, 'onLine', { value: false })
-        const { result } = renderHook(() => useOffline())
+        const { result } = renderHook(() => useOffline(mockService, mockFetchIssueDetail))
         expect(result.current.isOnline).toBe(false)
     })
 
     it('initializes pending count from queue', async () => {
         vi.mocked(OfflineQueue.getPendingCount).mockResolvedValue(5)
         
-        const { result } = renderHook(() => useOffline())
+        const { result } = renderHook(() => useOffline(mockService, mockFetchIssueDetail))
         
         // Wait for the async initialization
         await act(async () => {
@@ -50,7 +63,7 @@ describe('useOffline', () => {
             .mockResolvedValueOnce(0)
             .mockResolvedValueOnce(3)
         
-        const { result } = renderHook(() => useOffline())
+        const { result } = renderHook(() => useOffline(mockService, mockFetchIssueDetail))
         
         await act(async () => {
             await result.current.refreshPendingCount()
@@ -60,7 +73,7 @@ describe('useOffline', () => {
     })
 
     it('isProcessingQueue is initially false', () => {
-        const { result } = renderHook(() => useOffline())
+        const { result } = renderHook(() => useOffline(mockService, mockFetchIssueDetail))
         expect(result.current.isProcessingQueue).toBe(false)
     })
 })
@@ -72,7 +85,7 @@ describe('useOffline - Online/Offline Events', () => {
     })
 
     it('updates isOnline when going offline', async () => {
-        const { result } = renderHook(() => useOffline())
+        const { result } = renderHook(() => useOffline(mockService, mockFetchIssueDetail))
         
         expect(result.current.isOnline).toBe(true)
         
@@ -86,7 +99,7 @@ describe('useOffline - Online/Offline Events', () => {
     it('updates isOnline when coming back online', async () => {
         Object.defineProperty(navigator, 'onLine', { value: false })
         
-        const { result } = renderHook(() => useOffline())
+        const { result } = renderHook(() => useOffline(mockService, mockFetchIssueDetail))
         
         expect(result.current.isOnline).toBe(false)
         

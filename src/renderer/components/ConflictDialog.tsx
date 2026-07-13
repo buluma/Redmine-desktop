@@ -3,7 +3,7 @@ import { ConflictInfo, describeFieldValue } from '../services/ConflictResolver'
 
 interface ConflictDialogProps {
     conflict: ConflictInfo
-    onResolve: (resolution: 'local' | 'server' | 'merge', mergedData?: Record<string, any>) => void
+    onResolve: (resolution: 'local' | 'server' | 'merge', mergedData?: Record<string, unknown>) => void
     onDismiss: () => void
 }
 
@@ -25,7 +25,7 @@ export const ConflictDialog: React.FC<ConflictDialogProps> = ({
     const handleResolve = () => {
         if (selectedResolution === 'merge') {
             // Build merged data based on field-level selections
-            const mergedData: Record<string, any> = {}
+            const mergedData: Record<string, unknown> = {}
             for (const field of conflict.conflictFields) {
                 const choice = fieldOverrides[field] || 'server'
                 if (choice === 'local') {
@@ -306,7 +306,7 @@ export const ConflictDialog: React.FC<ConflictDialogProps> = ({
     )
 }
 
-function getServerValue(conflict: ConflictInfo, field: string): any {
+function getServerValue(conflict: ConflictInfo, field: string): string | number | undefined {
     const server = conflict.serverVersion
     switch (field) {
         case 'status_id': return server.status?.id

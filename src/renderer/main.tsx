@@ -6,7 +6,6 @@ import { ToastContainer } from './components/Toast'
 import { OfflineBanner } from './components/OfflineBanner'
 import { ConflictDialog } from './components/ConflictDialog'
 import { useOffline } from './hooks/useOffline'
-import { RedmineService } from './services/RedmineService'
 import './index.css'
 
 // Wrapper to provide offline context
@@ -20,6 +19,20 @@ function AppWithOffline() {
 
     const offlineState = useOffline(service, fetchIssueDetail)
 
+    // Adapt ConflictDialog's simpler callback to useOffline's typed callback
+    const handleConflictResolve = (
+        resolution: 'local' | 'server' | 'merge', 
+        mergedData?: Record<string, unknown>
+    ) => {
+        if (offlineState.currentConflict) {
+            offlineState.resolveConflict({
+                mutationId: offlineState.currentConflict.mutationId,
+                resolution,
+                mergedData,
+            })
+        }
+    }
+
     return (
         <>
             <OfflineBanner 
@@ -31,7 +44,7 @@ function AppWithOffline() {
             {offlineState.currentConflict && (
                 <ConflictDialog
                     conflict={offlineState.currentConflict}
-                    onResolve={offlineState.resolveConflict}
+                    onResolve={handleConflictResolve}
                     onDismiss={offlineState.skipConflict}
                 />
             )}

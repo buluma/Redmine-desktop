@@ -4,6 +4,7 @@ import { Issue, User, IssueStatus, IssuePriority } from '../models/redmine'
 import { getAssignedWatchers, getAssignedWatchersField, createAssignedWatchersUpdate } from '../utils/assignedWatchers'
 import { isVerified, isDevComplete, isComplete } from '../constants/status'
 import * as OfflineQueue from '../services/OfflineQueue'
+import { UpdateIssueBody } from '../services/OfflineQueue'
 
 export interface StatusCounts {
     dev: number
@@ -319,60 +320,87 @@ export function useIssues(): IssuesState & IssuesActions {
         }
     }, [])
 
-    const updateIssue = useCallback(async (service: RedmineService, id: number, data: any) => {
-        // Capture current issue state for conflict detection
-        const currentIssue = allIssues.find(i => i.id === id)
-        const expectedState = currentIssue ? {
-            statusId: currentIssue.status?.id,
-            priorityId: currentIssue.priority?.id,
-            assignedToId: currentIssue.assigned_to?.id,
-            fixedVersionId: currentIssue.fixed_version?.id,
-            updatedAt: currentIssue.updated_on,
-        } : undefined
+    // Helper: Create optimistic update from issue and changes
+    const createOptimisticUpdate = useCallback((issue: Issue, data: UpdateIssueBody): Issue => {
+        const optimistic = { ...issue, ...data, updated_on: new Date().toISOString() }
+        
+        if (data.status_id !== undefined) {
+            optimistic.status = { ...issue.status, id: data.status_id }
+        }
+        if (data.priority_id !== undefined) {
+            optimistic.priority = { ...issue.priority, id: data.priority_id }
+        }
+        if (data.assigned_to_id !== undefined) {
+            optimistic.assigned_to = data.assigned_to_id 
+                ? { id: parseInt(String(data.assigned_to_id)), name: '' } 
+                : undefined
+        }
+        if (data.fixed_version_id !== undefined) {
+            optimistic.fixed_version = data.fixed_version_id 
+                ? { id: parseInt(String(data.fixed_version_id)), name: '' } 
+                : undefined
+        }
+        
+        return optimistic
+    }, [])
 
-        // Optimistic update
+    // Helper: Extract expected state for conflict detection
+    const getExpectedState = useCallback((issue: Issue) => ({
+        statusId: issue.status?.id,
+        priorityId: issue.priority?.id,
+        assignedToId: issue.assigned_to?.id,
+        fixedVersionId: issue.fixed_version?.id,
+        updatedAt: issue.updated_on,
+    }), [])
+
+    // Helper: Queue failed mutation for offline retry
+    const queueForRetry = useCallback(async (
+        id: number, 
+        data: UpdateIssueBody, 
+        issue: Issue | undefined,
+        expectedState: ReturnType<typeof getExpectedState> | undefined
+    ) => {
+        await OfflineQueue.enqueueMutation({
+            type: 'update',
+            endpoint: `/issues/${id}.json`,
+            method: 'PUT',
+            body: data,
+            issueId: id,
+            subject: issue?.subject,
+            timestamp: Date.now(),
+            expectedState,
+        })
+    }, [])
+
+    // Main update function with optimistic updates
+    const updateIssue = useCallback(async (service: RedmineService, id: number, data: UpdateIssueBody) => {
+        const currentIssue = allIssues.find(i => i.id === id)
+        const expectedState = currentIssue ? getExpectedState(currentIssue) : undefined
         let previousIssue: Issue | undefined
+
+        // Apply optimistic update
         setAllIssues(prev => {
             const issue = prev.find(i => i.id === id)
             if (!issue) return prev
             previousIssue = issue
-            
-            const optimistic = { ...issue, ...data, updated_on: new Date().toISOString() }
-            if (data.status_id !== undefined) optimistic.status = { ...issue.status, id: data.status_id }
-            if (data.priority_id !== undefined) optimistic.priority = { ...issue.priority, id: data.priority_id }
-            if (data.assigned_to_id !== undefined) {
-                optimistic.assigned_to = data.assigned_to_id ? { id: parseInt(data.assigned_to_id), name: '' } : undefined
-            }
-            if (data.fixed_version_id !== undefined) {
-                optimistic.fixed_version = data.fixed_version_id ? { id: parseInt(data.fixed_version_id), name: '' } : undefined
-            }
-            
-            return prev.map(i => i.id === id ? optimistic : i)
+            return prev.map(i => i.id === id ? createOptimisticUpdate(issue, data) : i)
         })
 
         try {
             await service.updateIssue(id, data)
             const updated = await service.fetchIssueDetail(id)
             setAllIssues(prev => prev.map(i => i.id === id ? updated : i))
-        } catch (e: any) {
+        } catch (e: unknown) {
+            const errorMessage = e instanceof Error ? e.message : 'Unknown error'
             // Revert optimistic update
             if (previousIssue) {
                 setAllIssues(prev => prev.map(i => i.id === id ? previousIssue! : i))
             }
             // Queue for offline retry
-            await OfflineQueue.enqueueMutation({
-                type: 'update',
-                endpoint: `/issues/${id}.json`,
-                method: 'PUT',
-                body: data,
-                issueId: id,
-                subject: currentIssue?.subject,
-                timestamp: Date.now(),
-                expectedState,
-            })
-            setErrorMessage(`Update queued for retry: ${e.message}`)
+            await queueForRetry(id, data, currentIssue, expectedState)
+            setErrorMessage(`Update queued for retry: ${errorMessage}`)
         }
-    }, [allIssues])
+    }, [allIssues, createOptimisticUpdate, getExpectedState, queueForRetry])
 
     const addNote = useCallback(async (service: RedmineService, id: number, note: string) => {
         await updateIssue(service, id, { notes: note })

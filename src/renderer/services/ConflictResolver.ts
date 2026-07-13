@@ -14,7 +14,7 @@ export interface ConflictInfo {
 export interface ConflictResolution {
     mutationId: number
     resolution: 'local' | 'server' | 'merge'
-    mergedData?: Record<string, any>
+    mergedData?: Record<string, unknown>
 }
 
 // Fields that can conflict

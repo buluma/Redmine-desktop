@@ -1,11 +1,34 @@
 import Dexie from 'dexie'
 
+// Typed mutation bodies
+export interface UpdateIssueBody {
+    status_id?: number
+    priority_id?: number
+    assigned_to_id?: string | number
+    fixed_version_id?: string | number
+    subject?: string
+    description?: string
+    notes?: string
+}
+
+export interface CreateIssueBody {
+    project_id: number
+    subject: string
+    fixed_version_id?: number
+    assigned_to_id?: number
+    description?: string
+    priority_id?: number
+    tracker_id?: number
+}
+
+export type MutationBody = UpdateIssueBody | CreateIssueBody | Record<string, unknown>
+
 export interface QueuedMutation {
     id?: number
     type: 'update' | 'create' | 'delete'
     endpoint: string
     method: 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-    body?: any
+    body?: MutationBody
     issueId: number
     subject?: string // For display purposes
     timestamp: number

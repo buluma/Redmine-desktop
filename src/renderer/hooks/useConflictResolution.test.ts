@@ -136,7 +136,7 @@ describe('useConflictResolution - Resolution', () => {
         // Set up a conflict state (this would normally happen through checkForConflict)
         // For testing, we'll directly call resolveConflict
         await act(async () => {
-            await result.current.resolveConflict({ resolution: 'server' })
+            await result.current.resolveConflict({ mutationId: 1, resolution: 'server' })
         })
 
         // The callback should be called even without a current mutation
