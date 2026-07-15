@@ -13,6 +13,7 @@ vi.mock('../services/OfflineQueue', () => ({
     removeMutation: vi.fn().mockResolvedValue(undefined),
     shouldRetry: vi.fn().mockReturnValue(true),
     updateMutationError: vi.fn().mockResolvedValue(undefined),
+    getRetryDelay: vi.fn().mockReturnValue(0),
 }))
 
 // Mock service
@@ -152,6 +153,48 @@ describe('useOffline - Online/Offline Events', () => {
             expect(vi.mocked(OfflineQueue.getPendingMutations)).toHaveBeenCalledTimes(1)
         } finally {
             vi.mocked(OfflineQueue.clearStaleMutations).mockResolvedValue(0)
+            vi.useRealTimers()
+        }
+    })
+
+    it('paces a retried mutation by getRetryDelay instead of retrying immediately', async () => {
+        vi.useFakeTimers()
+        try {
+            const retriedMutation = {
+                id: 1,
+                type: 'update' as const,
+                endpoint: '/issues/1.json',
+                method: 'PUT' as const,
+                issueId: 1,
+                timestamp: Date.now(),
+                retryCount: 1, // already failed once -- this is a retry, not a first attempt
+            }
+            vi.mocked(OfflineQueue.getPendingMutations).mockResolvedValue([retriedMutation])
+            vi.mocked(OfflineQueue.getRetryDelay).mockReturnValue(5000)
+
+            renderHook(() => useOffline(mockService, mockFetchIssueDetail))
+
+            act(() => {
+                window.dispatchEvent(new Event('online'))
+            })
+            // Fire the existing 1s "process after reconnect" delay.
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(1000)
+            })
+
+            // Backoff for this retry hasn't elapsed yet -- must not have executed.
+            expect(mockService.updateIssue).not.toHaveBeenCalled()
+            expect(vi.mocked(OfflineQueue.getRetryDelay)).toHaveBeenCalledWith(1)
+
+            // Now let the backoff delay elapse.
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5000)
+            })
+
+            expect(mockService.updateIssue).toHaveBeenCalledWith(1, undefined)
+        } finally {
+            vi.mocked(OfflineQueue.getPendingMutations).mockResolvedValue([])
+            vi.mocked(OfflineQueue.getRetryDelay).mockReturnValue(0)
             vi.useRealTimers()
         }
     })

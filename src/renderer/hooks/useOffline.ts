@@ -178,6 +178,14 @@ export function useOffline(
 
             for (const mutation of mutations) {
                 try {
+                    // A retryCount > 0 means this mutation already failed at least once;
+                    // pace the retry with exponential backoff instead of hammering the
+                    // server again immediately.
+                    if (mutation.retryCount > 0) {
+                        const delay = OfflineQueue.getRetryDelay(mutation.retryCount)
+                        await new Promise(resolve => setTimeout(resolve, delay))
+                    }
+
                     // Check for conflicts first
                     const conflict = await checkForConflict(mutation)
                     
