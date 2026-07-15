@@ -198,6 +198,50 @@ describe('useAppViewModel - optimistic updates', () => {
         // Reverted back to the pre-optimistic state on failure.
         expect(result.current.allIssues.find(i => i.id === 1)?.status).toEqual({ id: 1, name: 'New' })
     })
+
+    it('applies the optimistic assignee/version change with the real name immediately, not a blank one', async () => {
+        mocks.fetchProjects.mockResolvedValue([{ id: 1, name: 'Project One' }])
+        mocks.fetchAssignableUsers.mockResolvedValue([{ id: 7, name: 'Alice', groups: [] }])
+        mocks.fetchVersions.mockResolvedValue([
+            { id: 10, project: { id: 1, name: 'Project One' }, name: 'v1.0', status: 'open', created_on: '2024-01-01', updated_on: '2024-01-01' },
+        ])
+        ;(IssueCache.getAllIssues as any).mockResolvedValue([
+            makeIssue({ id: 1, project: { id: 1, name: 'Project One' } })
+        ])
+
+        const { result } = renderHook(() => useAppViewModel())
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        await waitFor(() => expect(result.current.allIssues.find(i => i.id === 1)).toBeDefined())
+        // Wait for loadInitialData's per-project fetch of members/versions to land.
+        await waitFor(() => expect(result.current.projectMembersMap[1]).toBeDefined())
+        await waitFor(() => expect(result.current.projectVersionsMap[1]).toBeDefined())
+
+        let resolveUpdate: () => void = () => {}
+        mocks.updateIssue.mockReturnValue(new Promise<void>(resolve => { resolveUpdate = resolve }))
+        mocks.fetchIssueDetail.mockResolvedValue(
+            makeIssue({
+                id: 1,
+                project: { id: 1, name: 'Project One' },
+                assigned_to: { id: 7, name: 'Alice' },
+                fixed_version: { id: 10, name: 'v1.0' },
+            })
+        )
+
+        act(() => {
+            result.current.updateIssue(1, { assigned_to_id: '7', fixed_version_id: '10' })
+        })
+
+        const optimisticIssue = result.current.allIssues.find(i => i.id === 1)
+        expect(optimisticIssue?.assigned_to).toEqual({ id: 7, name: 'Alice' })
+        expect(optimisticIssue?.fixed_version).toEqual({ id: 10, name: 'v1.0' })
+
+        await act(async () => {
+            resolveUpdate()
+            await Promise.resolve()
+            await Promise.resolve()
+        })
+    })
 })
 
 describe('useAppViewModel - secure API key storage', () => {

@@ -934,14 +934,24 @@ export function useAppViewModel() {
             optimistic.priority = matchedPriority ? { ...previousIssue.priority, ...matchedPriority } : { ...previousIssue.priority, id: data.priority_id };
         }
         if (data.assigned_to_id !== undefined) {
-            optimistic.assigned_to = data.assigned_to_id
-                ? { id: parseInt(data.assigned_to_id), name: '' }
-                : undefined;
+            if (data.assigned_to_id) {
+                const assigneeId = parseInt(data.assigned_to_id);
+                const projectId = previousIssue.project?.id;
+                const matchedMember = projectId ? projectMembersMap[projectId]?.find(m => m.id === assigneeId) : undefined;
+                optimistic.assigned_to = matchedMember ? { id: matchedMember.id, name: matchedMember.name } : { id: assigneeId, name: '' };
+            } else {
+                optimistic.assigned_to = undefined;
+            }
         }
         if (data.fixed_version_id !== undefined) {
-            optimistic.fixed_version = data.fixed_version_id
-                ? { id: parseInt(data.fixed_version_id), name: '' }
-                : undefined;
+            if (data.fixed_version_id) {
+                const versionId = parseInt(data.fixed_version_id);
+                const projectId = previousIssue.project?.id;
+                const matchedVersion = projectId ? projectVersionsMap[projectId]?.find(v => v.id === versionId) : undefined;
+                optimistic.fixed_version = matchedVersion ? { id: matchedVersion.id, name: matchedVersion.name } : { id: versionId, name: '' };
+            } else {
+                optimistic.fixed_version = undefined;
+            }
         }
         if (data.subject !== undefined) {
             optimistic.subject = data.subject;
