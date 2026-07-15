@@ -3,6 +3,7 @@ import { RedmineService } from '../services/RedmineService'
 import { Issue, User, IssueStatus, IssuePriority } from '../models/redmine'
 import { getAssignedWatchers, getAssignedWatchersField, createAssignedWatchersUpdate } from '../utils/assignedWatchers'
 import { isVerified, isDevComplete, isComplete } from '../constants/status'
+import * as IssueCache from '../services/IssueCache'
 
 export interface StatusCounts {
     dev: number
@@ -38,22 +39,14 @@ export interface IssuesActions {
     setErrorMessage: (msg: string | null) => void
 }
 
+// Load from IndexedDB on startup (async, returns empty initially)
 function loadCachedIssues(): Issue[] {
-    try {
-        const cached = localStorage.getItem('cachedIssues')
-        return cached ? JSON.parse(cached) : []
-    } catch {
-        return []
-    }
+    // IndexedDB loading is async, so we start empty and load in useEffect
+    return []
 }
 
 function loadFollowedIds(): Set<number> {
-    try {
-        const cached = localStorage.getItem('cachedFollowedIssueIds')
-        return cached ? new Set(JSON.parse(cached)) : new Set()
-    } catch {
-        return new Set()
-    }
+    return new Set()
 }
 
 function mergeIssueMaps(prev: Issue[], fetched: Issue[]): { result: Issue[]; changed: boolean } {
@@ -89,13 +82,45 @@ export function useIssues(): IssuesState & IssuesActions {
     const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false)
     const [errorMessage, setErrorMessage] = useState<string | null>(null)
     const [followedIssueIds, setFollowedIssueIds] = useState<Set<number>>(loadFollowedIds)
+    const [isCacheLoaded, setIsCacheLoaded] = useState(false)
 
     const isRefreshingRef = useRef(false)
     const followedIssueIdsRef = useRef(followedIssueIds)
+    // Tracks whether a network refresh has already populated allIssues, so the
+    // (slower) IndexedDB cache-load effect below doesn't clobber fresher state
+    // with a stale cached snapshot if it resolves afterwards.
+    const hasSetIssuesFromNetworkRef = useRef(false)
 
     useEffect(() => {
         followedIssueIdsRef.current = followedIssueIds
     }, [followedIssueIds])
+
+    // Load cache from IndexedDB on mount
+    useEffect(() => {
+        const loadCache = async () => {
+            try {
+                // Try migrating from localStorage first
+                const migrated = await IssueCache.migrateFromLocalStorage()
+                if (migrated > 0) {
+                    console.log(`[useIssues] Migrated ${migrated} issues from localStorage`)
+                }
+
+                const cachedIssues = await IssueCache.getAllIssues()
+                if (cachedIssues.length > 0 && !hasSetIssuesFromNetworkRef.current) {
+                    setAllIssues(cachedIssues)
+                }
+
+                const followedRaw = await IssueCache.getMeta('followedIssueIds')
+                if (followedRaw) {
+                    setFollowedIssueIds(new Set(JSON.parse(followedRaw)))
+                }
+            } catch (e) {
+                console.warn('[useIssues] Failed to load cache from IndexedDB:', e)
+            }
+            setIsCacheLoaded(true)
+        }
+        loadCache()
+    }, [])
 
     const loadInitialData = useCallback(async (service: RedmineService, pinnedVersionIds: Set<number>) => {
         setIsLoading(true)
@@ -144,6 +169,7 @@ export function useIssues(): IssuesState & IssuesActions {
                 }
             }
 
+            hasSetIssuesFromNetworkRef.current = true
             setAllIssues(prev => {
                 const refreshedVersionIds = new Set(activeVersionArray)
                 const fetchedIssueMap = new Map(allFetchedIssues.map(i => [i.id, i]))
@@ -182,7 +208,10 @@ export function useIssues(): IssuesState & IssuesActions {
                 if (!hasChanges) return prev
 
                 const newIssuesList = [...preservedIssues, ...mergedActiveIssues, ...brandNewIssues]
-                try { localStorage.setItem('cachedIssues', JSON.stringify(newIssuesList)) } catch {}
+                // Save to IndexedDB (async, non-blocking)
+                IssueCache.saveIssues(newIssuesList).catch(e =>
+                    console.warn('[useIssues] Failed to save issues to IndexedDB:', e)
+                )
                 return newIssuesList
             })
 
@@ -220,7 +249,10 @@ export function useIssues(): IssuesState & IssuesActions {
 
                 setFollowedIssueIds(prev => {
                     if (prev.size === followedIds.size && Array.from(prev).every(id => followedIds.has(id))) return prev
-                    try { localStorage.setItem('cachedFollowedIssueIds', JSON.stringify(Array.from(followedIds))) } catch {}
+                    // Save to IndexedDB (async, non-blocking)
+                    IssueCache.saveMeta('followedIssueIds', JSON.stringify(Array.from(followedIds))).catch(e =>
+                        console.warn('[useIssues] Failed to save followed IDs to IndexedDB:', e)
+                    )
                     return followedIds
                 })
 
@@ -256,7 +288,9 @@ export function useIssues(): IssuesState & IssuesActions {
 
                     if (changed) {
                         const newIssues = Array.from(issueMap.values())
-                        try { localStorage.setItem('cachedIssues', JSON.stringify(newIssues)) } catch {}
+                        IssueCache.saveIssues(newIssues).catch(e =>
+                            console.warn('[useIssues] Failed to save issues to IndexedDB:', e)
+                        )
                         return newIssues
                     }
                     return prev
@@ -345,12 +379,10 @@ export function useIssues(): IssuesState & IssuesActions {
                 assigned_to_id: assignedToId
             })
             setAllIssues(prev => [newIssue, ...prev])
-            try {
-                const cached = localStorage.getItem('cachedIssues')
-                if (cached) {
-                    localStorage.setItem('cachedIssues', JSON.stringify([newIssue, ...JSON.parse(cached)]))
-                }
-            } catch {}
+            // Save to IndexedDB
+            IssueCache.saveIssues([newIssue]).catch(e =>
+                console.warn('[useIssues] Failed to save new issue to IndexedDB:', e)
+            )
         } catch (e: any) {
             setErrorMessage(e.message)
         } finally {
