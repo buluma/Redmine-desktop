@@ -490,6 +490,8 @@ export function useAppViewModel() {
             let allFetchedIssues: Issue[] = [];
             let offset = 0;
             const limit = 100;
+            const FETCH_CAP = 500;
+            let lastTotalCount = 0;
 
             while (true) {
                 const { issues, total_count } = await service.fetchIssues({
@@ -500,11 +502,18 @@ export function useAppViewModel() {
                     offset
                 });
                 allFetchedIssues = [...allFetchedIssues, ...issues];
+                lastTotalCount = total_count;
 
-                if (allFetchedIssues.length >= total_count || issues.length < limit || allFetchedIssues.length >= 500) {
+                if (allFetchedIssues.length >= total_count || issues.length < limit || allFetchedIssues.length >= FETCH_CAP) {
                     break;
                 }
                 offset += limit;
+            }
+
+            if (allFetchedIssues.length < lastTotalCount) {
+                showToast.info(
+                    `This version has ${lastTotalCount} issues; only the first ${FETCH_CAP} loaded.`
+                );
             }
 
             console.log(`Fetched ${allFetchedIssues.length} issues for version ${versionId}`);
