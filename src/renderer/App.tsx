@@ -262,6 +262,8 @@ const TabbedIssueList = React.memo(({
     stablePriorityList,
     stableVersionListCache,
     stableGroupedMemberCache,
+    pendingExpandGroupKey,
+    onExpandGroupHandled,
 }: any) => {
     // Keep track of which tabs we have rendered at least once
     const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set());
@@ -321,6 +323,8 @@ const TabbedIssueList = React.memo(({
                                 stablePriorityList={stablePriorityList}
                                 stableVersionListCache={stableVersionListCache}
                                 stableGroupedMemberCache={stableGroupedMemberCache}
+                                pendingExpandGroupKey={pendingExpandGroupKey}
+                                onExpandGroupHandled={onExpandGroupHandled}
                             />
                         </div>
                     </div>
@@ -346,6 +350,8 @@ const IssueListContent = React.memo(({
     handleUpdatePriority,
     handleUpdateVersion,
     handleUpdateAssignee,
+    pendingExpandGroupKey,
+    onExpandGroupHandled,
 }: any) => {
     // We need local collapsed state for THIS list instance?
     // Parent App has `collapsedGroups` which is global (keyed by group name).
@@ -354,6 +360,15 @@ const IssueListContent = React.memo(({
     // Wait, toggleGroup is in App. We need to pass it or use local state here.
     // Using local state here ensures each tab has its own expand/collapse memory which is even better!
     const [localCollapsed, setLocalCollapsed] = useState<Record<string, boolean>>({});
+
+    // Auto-expand a group requested by the tray (e.g. clicking a status count),
+    // once this tab is both active and the one the request was for (My Assigned).
+    useEffect(() => {
+        if (isActive && tabKey === '-3' && pendingExpandGroupKey) {
+            setLocalCollapsed(prev => ({ ...prev, [pendingExpandGroupKey]: false }));
+            onExpandGroupHandled?.();
+        }
+    }, [isActive, tabKey, pendingExpandGroupKey, onExpandGroupHandled]);
 
     const toggleLocalGroup = (groupKey: string) => {
         setLocalCollapsed(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
@@ -760,6 +775,10 @@ const App: React.FC = () => {
         const saved = localStorage.getItem('collapsedGroups');
         return saved ? JSON.parse(saved) : {};
     });
+
+    // One-shot signal: a status group key the active tab should auto-expand
+    // (set by the tray "My Issues" status-count click), cleared once handled.
+    const [pendingExpandGroupKey, setPendingExpandGroupKey] = useState<string | null>(null);
 
 
 
@@ -1185,16 +1204,19 @@ const App: React.FC = () => {
         };
     }, []);
 
-    // Listen for 'open-my-assigned-status' from main process (tray status-count click)
-    const openMyAssignedStatusDepsRef = useRef({ selectProject: vm.selectProject, setSelectedStatusId: vm.setSelectedStatusId });
+    // Listen for 'open-my-assigned-status' from main process (tray status-count click).
+    // Navigates to My Assigned and expands just that one status group, rather than
+    // setting a selectedStatusId filter -- that filter has no visible "clear" control
+    // when grouped by status (the default), so it would silently hide every other
+    // ticket with no way back short of toggling Group By twice.
+    const openMyAssignedStatusDepsRef = useRef({ selectProject: vm.selectProject });
     useEffect(() => {
-        openMyAssignedStatusDepsRef.current = { selectProject: vm.selectProject, setSelectedStatusId: vm.setSelectedStatusId };
-    }, [vm.selectProject, vm.setSelectedStatusId]);
+        openMyAssignedStatusDepsRef.current = { selectProject: vm.selectProject };
+    }, [vm.selectProject]);
     useEffect(() => {
-        const handler = (_: any, statusId: number) => {
-            const { selectProject, setSelectedStatusId } = openMyAssignedStatusDepsRef.current;
-            selectProject(-3);
-            setSelectedStatusId(statusId);
+        const handler = (_: any, statusName: string) => {
+            openMyAssignedStatusDepsRef.current.selectProject(-3);
+            setPendingExpandGroupKey(statusName);
         };
         (window as any).ipcRenderer?.on('open-my-assigned-status', handler);
         return () => {
@@ -2405,6 +2427,8 @@ const App: React.FC = () => {
                                 stablePriorityList={stablePriorityList}
                                 stableVersionListCache={stableVersionListCache}
                                 stableGroupedMemberCache={stableGroupedMemberCache}
+                                pendingExpandGroupKey={pendingExpandGroupKey}
+                                onExpandGroupHandled={() => setPendingExpandGroupKey(null)}
                             />
                         )}
                     </div>
