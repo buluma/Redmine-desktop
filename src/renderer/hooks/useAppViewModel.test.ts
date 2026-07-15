@@ -1,35 +1,39 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { useAppViewModel } from './useAppViewModel'
-import { RedmineService } from '../services/RedmineService'
+import { Issue, User } from '../models/redmine'
 
-// Prevent real network calls from the effects useAppViewModel fires once a
-// service is configured (loadInitialData, refreshIssues, etc.) — this test
-// only cares about the service instance being exposed, not what it fetches.
-const emptyResponse = {
-    data: {
-        projects: [],
-        versions: [],
-        users: [],
-        memberships: [],
-        issue_statuses: [],
-        issue_priorities: [],
-        issues: [],
-        total_count: 0,
-        user: {},
-        issue: {},
-    },
-}
-vi.mock('axios', () => ({
-    default: {
-        create: () => ({
-            get: vi.fn().mockResolvedValue(emptyResponse),
-            post: vi.fn().mockResolvedValue(emptyResponse),
-            put: vi.fn().mockResolvedValue(emptyResponse),
-            delete: vi.fn().mockResolvedValue(emptyResponse),
-        }),
-    },
+// Mock RedmineService so the hook never performs real network I/O.
+// Methods resolve to empty/harmless defaults by default; individual tests
+// override return values (e.g. fetchIssueDetail) as needed.
+const mocks = vi.hoisted(() => {
+    return {
+        fetchCurrentUser: vi.fn(),
+        fetchIssueStatuses: vi.fn(),
+        fetchIssuePriorities: vi.fn(),
+        fetchProjects: vi.fn(),
+        fetchVersions: vi.fn(),
+        fetchAssignableUsers: vi.fn(),
+        fetchIssues: vi.fn(),
+        updateIssue: vi.fn(),
+        fetchIssueDetail: vi.fn(),
+    }
+})
+
+vi.mock('../services/RedmineService', () => ({
+    RedmineService: vi.fn().mockImplementation(() => mocks),
 }))
+
+// Mock the IndexedDB-backed cache so tests control cache contents directly
+// instead of depending on a real (fake-indexeddb) Dexie instance shared across tests.
+vi.mock('../services/IssueCache', () => ({
+    migrateFromLocalStorage: vi.fn().mockResolvedValue(0),
+    getAllIssues: vi.fn().mockResolvedValue([]),
+    getMeta: vi.fn().mockResolvedValue(null),
+    saveIssues: vi.fn().mockResolvedValue(undefined),
+    saveMeta: vi.fn().mockResolvedValue(undefined),
+}))
+
+import * as IssueCache from '../services/IssueCache'
 
 // Mock secureStore
 const mockSecureStore = {
@@ -45,31 +49,277 @@ Object.defineProperty(window, 'ipcRenderer', {
     writable: true,
 })
 
-describe('useAppViewModel', () => {
+import { useAppViewModel } from './useAppViewModel'
+
+const mockUser: User = {
+    id: 1, login: 'me', firstname: 'Current', lastname: 'User', created_on: '2024-01-01', name: 'Current User',
+}
+
+function makeIssue(overrides: Partial<Issue> = {}): Issue {
+    return {
+        id: 1,
+        subject: 'Test issue',
+        tracker: { id: 1, name: 'Bug' },
+        status: { id: 1, name: 'New' },
+        priority: { id: 1, name: 'Normal' },
+        author: { id: 1, name: 'Author' },
+        done_ratio: 0,
+        is_private: false,
+        created_on: '2024-01-01',
+        updated_on: '2024-01-01',
+        ...overrides,
+    }
+}
+
+describe('useAppViewModel - version view data cache', () => {
     beforeEach(() => {
-        while (localStorage.length > 0) {
-            const key = localStorage.key(0)
-            if (key) localStorage.removeItem(key)
-        }
+        localStorage.clear()
         vi.clearAllMocks()
+
+        mocks.fetchCurrentUser.mockResolvedValue(mockUser)
+        mocks.fetchIssueStatuses.mockResolvedValue([])
+        mocks.fetchIssuePriorities.mockResolvedValue([])
+        mocks.fetchProjects.mockResolvedValue([])
+        mocks.fetchVersions.mockResolvedValue([])
+        mocks.fetchAssignableUsers.mockResolvedValue([])
+        // Generic fallback for any fetchIssues call (active-version refresh, followed/assigned lookups).
+        // activeVersionIds is empty in this test, so these calls are effectively no-ops.
+        mocks.fetchIssues.mockResolvedValue({ issues: [], total_count: 0 })
+        mocks.updateIssue.mockResolvedValue(undefined)
+
+        localStorage.setItem('redmineURL', 'http://redmine.test')
+        localStorage.setItem('redmineAPIKey', 'test-key')
+
+        const issueA = makeIssue({ id: 100, fixed_version: { id: 10, name: 'v1.0' }, status: { id: 1, name: 'New' } })
+        const issueB = makeIssue({ id: 200, fixed_version: { id: 20, name: 'v2.0' }, status: { id: 1, name: 'New' } })
+        ;(IssueCache.getAllIssues as any).mockResolvedValue([issueA, issueB])
+
+        // Active tab is version 10; version 20 is a previously-visited, now-inactive tab.
+        localStorage.setItem('lastSelectedVersionId', '10')
     })
 
-    it('exposes a null service when Redmine is not configured', () => {
+    it('refreshes the inactive tab cache when allIssues changes without a filter change', async () => {
         const { result } = renderHook(() => useAppViewModel())
 
-        expect(result.current.service).toBeNull()
+        // Let the async IndexedDB cache-load effect apply the seeded issues.
+        await waitFor(() => expect(result.current.allIssues.length).toBe(2))
+
+        // Let initial load / mount-time refresh settle.
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        await waitFor(() => expect(result.current.isBackgroundRefreshing).toBe(false))
+
+        // Sanity: active tab (10) and inactive tab (20) both populate the cache.
+        expect(result.current.getVersionViewData('10').groups['New']).toHaveLength(1)
+        const before = result.current.getVersionViewData('20')
+        expect(before.groups['New']).toHaveLength(1)
+
+        // Mutate allIssues (e.g. a status update landing) without touching any filter.
+        mocks.fetchIssueDetail.mockResolvedValueOnce(
+            makeIssue({ id: 200, fixed_version: { id: 20, name: 'v2.0' }, status: { id: 2, name: 'In Progress' } })
+        )
+        await act(async () => {
+            await result.current.updateIssue(200, { status_id: 2 })
+        })
+
+        // The inactive tab's cached data must reflect the mutation, not the stale snapshot.
+        const after = result.current.getVersionViewData('20')
+        expect(after.groups['New']).toBeUndefined()
+        expect(after.groups['In Progress']).toHaveLength(1)
+    })
+})
+
+describe('useAppViewModel - optimistic updates', () => {
+    beforeEach(() => {
+        localStorage.clear()
+        vi.clearAllMocks()
+
+        mocks.fetchCurrentUser.mockResolvedValue(mockUser)
+        mocks.fetchIssueStatuses.mockResolvedValue([
+            { id: 1, name: 'New' },
+            { id: 3, name: 'Done' },
+        ])
+        mocks.fetchIssuePriorities.mockResolvedValue([
+            { id: 1, name: 'Normal' },
+            { id: 5, name: 'Urgent' },
+        ])
+        mocks.fetchProjects.mockResolvedValue([])
+        mocks.fetchVersions.mockResolvedValue([])
+        mocks.fetchAssignableUsers.mockResolvedValue([])
+        mocks.fetchIssues.mockResolvedValue({ issues: [], total_count: 0 })
+
+        localStorage.setItem('redmineURL', 'http://redmine.test')
+        localStorage.setItem('redmineAPIKey', 'test-key')
+        ;(IssueCache.getAllIssues as any).mockResolvedValue([
+            makeIssue({ id: 1, status: { id: 1, name: 'New' }, priority: { id: 1, name: 'Normal' } })
+        ])
     })
 
-    it('exposes a real RedmineService instance once configured, for offline sync to use', async () => {
+    it('applies the optimistic status/priority change with the real name immediately, not just the id', async () => {
+        const { result } = renderHook(() => useAppViewModel())
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        await waitFor(() => expect(result.current.allIssues.find(i => i.id === 1)).toBeDefined())
+
+        // Keep the API call pending so we can inspect the optimistic state before it resolves.
+        let resolveUpdate: () => void = () => {}
+        mocks.updateIssue.mockReturnValue(new Promise<void>(resolve => { resolveUpdate = resolve }))
+        mocks.fetchIssueDetail.mockResolvedValue(
+            makeIssue({ id: 1, status: { id: 3, name: 'Done' }, priority: { id: 5, name: 'Urgent' } })
+        )
+
+        act(() => {
+            // Not awaited: we want to inspect state applied synchronously before the network call resolves.
+            result.current.updateIssue(1, { status_id: 3, priority_id: 5 })
+        })
+
+        const optimisticIssue = result.current.allIssues.find(i => i.id === 1)
+        expect(optimisticIssue?.status).toEqual({ id: 3, name: 'Done' })
+        expect(optimisticIssue?.priority).toEqual({ id: 5, name: 'Urgent' })
+
+        await act(async () => {
+            resolveUpdate()
+            await Promise.resolve()
+            await Promise.resolve()
+        })
+    })
+
+    it('reverts the optimistic update if the API call fails', async () => {
+        const { result } = renderHook(() => useAppViewModel())
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        await waitFor(() => expect(result.current.allIssues.find(i => i.id === 1)?.status).toEqual({ id: 1, name: 'New' }))
+
+        mocks.updateIssue.mockRejectedValue(new Error('Network error'))
+
+        await act(async () => {
+            await result.current.updateIssue(1, { status_id: 3 })
+        })
+
+        // Reverted back to the pre-optimistic state on failure.
+        expect(result.current.allIssues.find(i => i.id === 1)?.status).toEqual({ id: 1, name: 'New' })
+    })
+})
+
+describe('useAppViewModel - secure API key storage', () => {
+    beforeEach(() => {
+        localStorage.clear()
+        vi.clearAllMocks()
+        mockSecureStore.store.mockResolvedValue(true)
+        mockSecureStore.retrieve.mockResolvedValue(null)
+        mockSecureStore.remove.mockResolvedValue(true)
+
+        mocks.fetchCurrentUser.mockResolvedValue(mockUser)
+        mocks.fetchIssueStatuses.mockResolvedValue([])
+        mocks.fetchIssuePriorities.mockResolvedValue([])
+        mocks.fetchProjects.mockResolvedValue([])
+    })
+
+    it('migrates a legacy plaintext API key into secure storage and clears it from localStorage', async () => {
+        localStorage.setItem('redmineURL', 'http://redmine.test')
+        localStorage.setItem('redmineAPIKey', 'legacy-plaintext-key')
+
+        renderHook(() => useAppViewModel())
+
+        await waitFor(() => {
+            expect(mockSecureStore.store).toHaveBeenCalledWith('redmineAPIKey', 'legacy-plaintext-key')
+        })
+        await waitFor(() => {
+            expect(localStorage.getItem('redmineAPIKey')).toBeNull()
+        })
+        expect(localStorage.getItem('hasSecureKey')).toBe('true')
+    })
+
+    it('clears any leftover plaintext key once the secure key has loaded', async () => {
+        localStorage.setItem('redmineURL', 'http://redmine.test')
+        localStorage.setItem('hasSecureKey', 'true')
+        localStorage.setItem('redmineAPIKey', 'stale-plaintext-copy')
+        mockSecureStore.retrieve.mockResolvedValue('secure-key-value')
+
+        renderHook(() => useAppViewModel())
+
+        await waitFor(() => {
+            expect(localStorage.getItem('redmineAPIKey')).toBeNull()
+        })
+    })
+
+    it('saveSettings stores the key via secureStore, not plaintext localStorage', async () => {
         const { result } = renderHook(() => useAppViewModel())
 
         await act(async () => {
-            await result.current.saveSettings('http://redmine.example.com', 'api-key-123')
+            await result.current.saveSettings('http://redmine.test', 'new-api-key')
         })
 
+        expect(mockSecureStore.store).toHaveBeenCalledWith('redmineAPIKey', 'new-api-key')
+        expect(localStorage.getItem('hasSecureKey')).toBe('true')
+    })
+})
+
+describe('useAppViewModel - IndexedDB issue cache', () => {
+    beforeEach(() => {
+        localStorage.clear()
+        vi.clearAllMocks()
+        ;(IssueCache.getAllIssues as any).mockResolvedValue([])
+        ;(IssueCache.migrateFromLocalStorage as any).mockResolvedValue(0)
+        ;(IssueCache.getMeta as any).mockResolvedValue(null)
+
+        mocks.fetchCurrentUser.mockResolvedValue(mockUser)
+        mocks.fetchIssueStatuses.mockResolvedValue([])
+        mocks.fetchIssuePriorities.mockResolvedValue([])
+        mocks.fetchProjects.mockResolvedValue([])
+        mocks.fetchVersions.mockResolvedValue([])
+        mocks.fetchAssignableUsers.mockResolvedValue([])
+        mocks.fetchIssues.mockResolvedValue({ issues: [], total_count: 0 })
+
+        localStorage.setItem('redmineURL', 'http://redmine.test')
+        localStorage.setItem('hasSecureKey', 'true')
+        mockSecureStore.retrieve.mockResolvedValue('test-key')
+    })
+
+    it('migrates legacy localStorage issues into IndexedDB on mount', async () => {
+        renderHook(() => useAppViewModel())
+
         await waitFor(() => {
-            expect(result.current.service).toBeInstanceOf(RedmineService)
+            expect(IssueCache.migrateFromLocalStorage).toHaveBeenCalled()
         })
-        expect(typeof result.current.service!.updateIssue).toBe('function')
+    })
+
+    it('loads cached issues from IndexedDB on mount', async () => {
+        const cachedIssue = makeIssue({ id: 1, subject: 'Cached issue' })
+        ;(IssueCache.getAllIssues as any).mockResolvedValue([cachedIssue])
+
+        const { result } = renderHook(() => useAppViewModel())
+
+        await waitFor(() => {
+            expect(result.current.allIssues.map(i => i.id)).toEqual([1])
+        })
+    })
+
+    it('does not let a slow IndexedDB cache load clobber issues already set by a faster network refresh', async () => {
+        const staleCachedIssue = makeIssue({ id: 1, subject: 'Stale cached issue' })
+        const freshNetworkIssue = makeIssue({ id: 2, subject: 'Fresh network issue' })
+
+        let resolveGetAllIssues!: (issues: Issue[]) => void
+        const getAllIssuesPromise = new Promise<Issue[]>(resolve => {
+            resolveGetAllIssues = resolve
+        })
+        ;(IssueCache.getAllIssues as any).mockReturnValue(getAllIssuesPromise)
+        mocks.fetchIssues.mockResolvedValue({ issues: [freshNetworkIssue], total_count: 1 })
+        localStorage.setItem('cachedActiveVersionIds', JSON.stringify([1]))
+
+        const { result } = renderHook(() => useAppViewModel())
+
+        // Network refresh finishes first and populates allIssues.
+        await waitFor(() => {
+            expect(result.current.allIssues.map(i => i.id)).toEqual([2])
+        })
+
+        // The slower IndexedDB cache load now resolves with stale data.
+        await act(async () => {
+            resolveGetAllIssues([staleCachedIssue])
+            await getAllIssuesPromise
+        })
+
+        // The stale cache read must not clobber the fresher network state.
+        expect(result.current.allIssues.map(i => i.id)).toEqual([2])
     })
 })

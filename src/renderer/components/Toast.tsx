@@ -91,7 +91,7 @@ export const showToast = {
             id: `toast-${++toastIdCounter}`,
             type: 'error',
             message,
-            duration: duration || 5000,
+            duration: duration || 5000, // Errors stay longer
         }
         addToastCallback?.(toast)
     },

@@ -5,19 +5,694 @@ import { format } from 'date-fns';
 import { AuthenticatedImage } from './components/AuthenticatedImage';
 import { RichEditor } from './components/RichEditor';
 import UpdaterModal from './components/UpdaterModal';
-import { NoteEditor } from './components/NoteEditor';
-import { IssueItem } from './components/IssueItem';
-import { TabbedIssueList } from './components/TabbedIssueList';
-import { RemoteSearchResults } from './components/RemoteSearchResults';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { marked } from 'marked';
 import { getAssignedWatchers } from './utils/assignedWatchers';
-import { isDevComplete, isVerified, isCircleActionDisabled, isSubjectDone, getIssueStatusColor, isGroupDefaultCollapsed } from './constants/status';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useOffline } from './hooks/useOffline';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ConflictDialog } from './components/ConflictDialog';
+
+
+const MemoIssueItem = React.memo(({
+    issue,
+    isSelected,
+    onSelect,
+    onUpdateStatus,
+    onUpdatePriority,
+    onUpdateVersion,
+    onUpdateAssignee,
+    statusList,
+    priorityList,
+    versionList,
+    groupedMembers,
+    isFollowed,
+    onToggleFollow
+}: {
+    issue: Issue,
+    isSelected: boolean,
+    onSelect: (id: number) => void,
+    onUpdateStatus: (id: number, statusId: number) => void,
+    onUpdatePriority: (id: number, priorityId: number) => void,
+    onUpdateVersion: (id: number, versionId: string) => void,
+    onUpdateAssignee: (id: number, assigneeId: string) => void,
+    statusList: any[],
+    priorityList: any[],
+    versionList: any[],
+    groupedMembers: { grouped: Record<string, { id: number; name: string }[]>, noGroup: { id: number; name: string }[], sortedGroups: string[] },
+    isFollowed: boolean,
+    onToggleFollow: (id: number) => void
+}) => {
+    return (
+        <div className={`issue-item ${isSelected ? 'selected' : ''}`} data-issue-id={issue.id} onClick={() => onSelect(issue.id)} style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', gap: 10, position: 'relative' }}>
+            <div className="issue-icon-circle"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (issue.status.name.includes('Verification Complete') || issue.status.name.includes('验证完成') || issue.status.name.includes('Development Complete') || issue.status.name.includes('开发完成')) return;
+                    const doneStatus = statusList.find(s => s.name.includes('Development Complete') || s.name.includes('开发完成'));
+                    if (doneStatus) {
+                        onUpdateStatus(issue.id, doneStatus.id);
+                    }
+                }}
+                style={{
+                    borderColor: (issue.status.name.includes('开发完成') || issue.status.name.includes('Development Complete')) ? '#30d158' : (issue.status.name.includes('验证完成') || issue.status.name.includes('Verification Complete')) ? 'var(--text-secondary)' : '#ff453a',
+                    width: 18, height: 18, fontSize: 9, flexShrink: 0,
+                    color: (issue.status.name.includes('开发完成') || issue.status.name.includes('Development Complete')) ? '#30d158' : (issue.status.name.includes('验证完成') || issue.status.name.includes('Verification Complete')) ? 'var(--text-secondary)' : '#ff453a',
+                    cursor: (issue.status.name.includes('开发完成') || issue.status.name.includes('Development Complete') || issue.status.name.includes('验证完成') || issue.status.name.includes('Verification Complete')) ? 'default' : 'pointer'
+                }}>
+                {(issue.status.name.includes('开发完成') || issue.status.name.includes('Development Complete') || issue.status.name.includes('验证完成') || issue.status.name.includes('Verification Complete')) ? '✓' : ''}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="issue-subject" style={{
+                    fontSize: 13,
+                    color: (issue.status.name.includes('验证完成') || issue.status.name.includes('Verification Complete')) ? 'var(--text-secondary)' : 'var(--text-primary)',
+                    textDecoration: (issue.status.name.includes('验证完成') || issue.status.name.includes('Verification Complete')) ? 'line-through' : 'none',
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                }}>{issue.subject}</div>
+                <div className="issue-meta" style={{ fontSize: 10, marginTop: 4, display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'var(--text-secondary)' }}>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                        <span style={{ background: 'rgba(255,69,58,0.15)', borderRadius: 8, padding: '1px 6px', fontSize: 10, color: '#ff453a', position: 'relative', fontWeight: 500, border: '1px solid rgba(255,69,58,0.3)' }}>
+                            {issue.status.name}
+                            <select value={issue.status.id} onClick={e => e.stopPropagation()} onChange={e => onUpdateStatus(issue.id, parseInt(e.target.value))} style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}>
+                                {statusList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                            </select>
+                            <span style={{ marginLeft: 3, fontSize: 10 }}>⌄</span>
+                        </span>
+                        <span>•</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: 10, position: 'relative' }}>
+                            {issue.priority.name}
+                            <select value={issue.priority.id} onClick={e => e.stopPropagation()} onChange={e => onUpdatePriority(issue.id, parseInt(e.target.value))} style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}>
+                                {priorityList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                            <span style={{ marginLeft: 3, fontSize: 10, color: 'var(--text-secondary)' }}>⌄</span>
+                        </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>▷</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: 10, position: 'relative' }}>
+                            {issue.fixed_version?.name || '-'}
+                            <select value={issue.fixed_version?.id || ''} onClick={e => e.stopPropagation()} onChange={e => onUpdateVersion(issue.id, e.target.value)} style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}>
+                                <option value="">-</option>
+                                {versionList.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                            </select>
+                            <span style={{ marginLeft: 3, fontSize: 10, color: 'var(--text-secondary)' }}>⌄</span>
+                        </span>
+                        <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>👤</span>
+                        <span style={{ color: 'var(--text-secondary)', fontSize: 10, position: 'relative' }}>
+                            {issue.assigned_to?.name || '-'}
+                            <select value={issue.assigned_to?.id || ''} onClick={e => e.stopPropagation()} onChange={e => onUpdateAssignee(issue.id, e.target.value)} style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}>
+                                <option value="">-</option>
+                                {(() => {
+                                    const { grouped, noGroup, sortedGroups } = groupedMembers;
+                                    if (sortedGroups.length === 0) {
+                                        return noGroup.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>);
+                                    }
+                                    return (
+                                        <>
+                                            {sortedGroups.map(g => (
+                                                <optgroup key={g} label={g}>
+                                                    {grouped[g].sort((a, b) => a.name.localeCompare(b.name)).map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
+                                            {noGroup.length > 0 && (
+                                                <optgroup label="Others">
+                                                    {noGroup.sort((a, b) => a.name.localeCompare(b.name)).map(m => (
+                                                        <option key={m.id} value={m.id}>{m.name}</option>
+                                                    ))}
+                                                </optgroup>
+                                            )}
+                                        </>
+                                    );
+                                })()}
+                            </select>
+                            <span style={{ marginLeft: 3, fontSize: 10, color: 'var(--text-secondary)' }}>⌄</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            {/* Follow Button (Eye Icon) */}
+            <div
+                className="follow-button"
+                onClick={(e) => { e.stopPropagation(); onToggleFollow(issue.id); }}
+                style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: isFollowed ? '#0c66ff' : 'var(--text-secondary)',
+                    opacity: isFollowed ? 1 : 0.3,
+                    transition: 'all 0.2s',
+                    padding: '4px',
+                    borderRadius: '4px'
+                }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '1'}
+                onMouseLeave={e => { if (!isFollowed) e.currentTarget.style.opacity = '0.3'; }}
+                title={isFollowed ? 'Unfollow' : 'Follow'}
+            >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                </svg>
+            </div>
+        </div>
+    );
+}, (prevProps, nextProps) => {
+    // Custom comparison: only re-render if these specific props changed
+    // We add a ref check or callback to notify parent about position? 
+    // Actually, for indicator, we need the DOM element. 
+    // But since we can't easily pass ref through memo without forwardRef, 
+    // and we have many items, maybe we just use a data attribute and let parent find it?
+    // Using `data-issue-id` is good.
+    return (
+        prevProps.isSelected === nextProps.isSelected &&
+        prevProps.issue.id === nextProps.issue.id &&
+        prevProps.issue.subject === nextProps.issue.subject &&
+        prevProps.issue.status.id === nextProps.issue.status.id &&
+        prevProps.issue.priority.id === nextProps.issue.priority.id &&
+        prevProps.issue.fixed_version?.id === nextProps.issue.fixed_version?.id &&
+        prevProps.issue.assigned_to?.id === nextProps.issue.assigned_to?.id &&
+        prevProps.statusList === nextProps.statusList &&
+        prevProps.priorityList === nextProps.priorityList &&
+        prevProps.versionList === nextProps.versionList &&
+        prevProps.groupedMembers === nextProps.groupedMembers &&
+        prevProps.isFollowed === nextProps.isFollowed
+    );
+});
+
+const NoteEditor: React.FC<{ issueId: number, onAddNote: (id: number, text: string) => Promise<void> }> = ({ issueId, onAddNote }) => {
+    const [noteText, setNoteText] = useState('');
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    const handleSend = async () => {
+        if (noteText.trim()) {
+            await onAddNote(issueId, noteText.trim());
+            setNoteText('');
+            // Reset textarea size after sending
+            if (textareaRef.current) {
+                textareaRef.current.style.height = '36px';
+                textareaRef.current.style.background = 'var(--input-bg)';
+                textareaRef.current.blur();
+            }
+        }
+    };
+
+    return (
+        <div className="note-editor-bar pane-footer" style={{ flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-end' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
+                <textarea
+                    ref={textareaRef}
+                    className="note-input"
+                    value={noteText}
+                    onChange={e => setNoteText(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.shiftKey) {
+                            e.preventDefault();
+                            handleSend();
+                        } else if (e.key === 'Escape') {
+                            e.currentTarget.blur();
+                        }
+                    }}
+                    placeholder="Add a note... (Shift + Enter to send)"
+                    style={{ width: '100%', height: 36, display: 'block', background: 'var(--input-bg)', border: 'none', borderRadius: 8, padding: '9px 50px 9px 15px', color: 'var(--text-primary)', resize: 'none', fontSize: 13, transition: 'all 0.2s', outline: 'none' }}
+                    onFocus={e => {
+                        (e.target as any).style.height = '100px';
+                        (e.target as any).style.background = 'var(--editor-bg)';
+                        (e.target as any).style.backdropFilter = 'blur(50px)';
+                    }}
+                    onBlur={e => {
+                        if (!noteText) {
+                            (e.target as any).style.height = '36px';
+                        }
+                        (e.target as any).style.background = 'var(--input-bg)';
+                        (e.target as any).style.backdropFilter = 'none';
+                    }}
+                />
+                <button
+                    onClick={handleSend}
+                    style={{ position: 'absolute', right: 8, bottom: 4, background: '#0c66ff', border: 'none', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer', transition: 'all 0.12s' }}
+                    onMouseDown={e => { (e.currentTarget as any).style.transform = 'scale(0.95)' }}
+                    onMouseUp={e => { (e.currentTarget as any).style.transform = 'scale(1)' }}
+                >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    );
+};
+
+
+
+const TabbedIssueList = React.memo(({
+    currentKey,
+    getVersionViewData,
+    vm,
+    deferredGroupedIssues,
+    selectedIssueState, // Pass full state object
+    handleSelectIssue,
+    handleUpdateStatus,
+    handleUpdatePriority,
+    handleUpdateVersion,
+    handleUpdateAssignee,
+    stableStatusList,
+    stablePriorityList,
+    stableVersionListCache,
+    stableGroupedMemberCache,
+}: any) => {
+    // Keep track of which tabs we have rendered at least once
+    const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        // Mark current as visited
+        if (currentKey && !visitedTabs.has(currentKey)) {
+            setVisitedTabs(prev => {
+                const newSet = new Set(prev);
+                newSet.add(currentKey);
+                return newSet;
+            });
+        }
+    }, [currentKey, visitedTabs]);
+
+    const tabsToRender = Array.from(visitedTabs);
+
+    return (
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+            {tabsToRender.map(key => {
+                const isActive = key === currentKey;
+                const data = vm.getVersionViewData(key);
+                if (!data) return null;
+
+                // Use visibility: hidden + absolute positioning to preserve scroll position and layout state
+                // This is much more reliable than display: none + manual scroll restoration
+                return (
+                    <div
+                        key={key}
+                        data-tab-key={key}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%',
+                            overflowY: 'auto',
+                            visibility: isActive ? 'visible' : 'hidden',
+                            zIndex: isActive ? 1 : 0,
+                            backgroundColor: 'transparent'
+                        }}
+                    >
+                        {/* Wrapper for padding - ensure it doesn't break absolute layout */}
+                        <div style={{ paddingBottom: 20 }}>
+                            <IssueListContent
+                                isActive={isActive}
+                                tabKey={key} // Pass tabKey so content knows who it is
+                                globalSelectedIssueState={selectedIssueState}
+                                data={data}
+                                vm={vm}
+                                onSelectIssue={handleSelectIssue}
+                                handleUpdateStatus={handleUpdateStatus}
+                                handleUpdatePriority={handleUpdatePriority}
+                                handleUpdateVersion={handleUpdateVersion}
+                                handleUpdateAssignee={handleUpdateAssignee}
+                                stableStatusList={stableStatusList}
+                                stablePriorityList={stablePriorityList}
+                                stableVersionListCache={stableVersionListCache}
+                                stableGroupedMemberCache={stableGroupedMemberCache}
+                            />
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+});
+
+// Extracted Inner List Content
+const IssueListContent = React.memo(({
+    data,
+    vm,
+    isActive,
+    tabKey,
+    globalSelectedIssueState,
+    onSelectIssue,
+    stableStatusList,
+    stablePriorityList,
+    stableVersionListCache,
+    stableGroupedMemberCache,
+    handleUpdateStatus,
+    handleUpdatePriority,
+    handleUpdateVersion,
+    handleUpdateAssignee,
+}: any) => {
+    // We need local collapsed state for THIS list instance?
+    // Parent App has `collapsedGroups` which is global (keyed by group name).
+    // This is fine as long as group names are unique enough or we want shared collapsed state.
+    // Ideally, local state per tab is better for "memory", but let's stick to simple "toggleGroup" from parent if passed?
+    // Wait, toggleGroup is in App. We need to pass it or use local state here.
+    // Using local state here ensures each tab has its own expand/collapse memory which is even better!
+    const [localCollapsed, setLocalCollapsed] = useState<Record<string, boolean>>({});
+
+    const toggleLocalGroup = (groupKey: string) => {
+        setLocalCollapsed(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
+    };
+
+    const listRef = useRef<HTMLDivElement>(null);
+
+    // Local selection state for this tab
+    const [localSelectedId, setLocalSelectedId] = useState<number | null>(null);
+
+    // Sync with App when this tab becomes active
+    useEffect(() => {
+        if (isActive) {
+            // Check if global selection is intended for THIS tab (Deep Link or same-tab click)
+            // Or if global selection is empty/null (we can restore ours)
+            // sourceKey comparison is crucial to prevent "inheriting" selection from another tab
+            const globalId = globalSelectedIssueState?.id;
+            const sourceKey = globalSelectedIssueState?.sourceKey;
+
+            const isForMe = sourceKey === tabKey;
+
+            if (isForMe && globalId) {
+                // It's explicitly for us, adopt it
+                if (globalId !== localSelectedId) {
+                    setLocalSelectedId(globalId);
+                }
+            } else {
+                // Not for us (or empty), check if we should restore OUR selection to App
+                // Only if current global is NOT for us (i.e. we are switching TO this tab)
+                // If global is empty, we restore. if global is for another key, we still restore (overwriting it)
+                if (localSelectedId !== globalId) {
+                    onSelectIssue(localSelectedId, tabKey);
+                }
+            }
+        }
+    }, [isActive, globalSelectedIssueState, data, tabKey]);
+
+    // Handle local click - notify parent with our key
+    const onLocalSelect = useCallback((id: number) => {
+        setLocalSelectedId(id);
+        onSelectIssue(id, data.tabKey); // Pass tabKey (we need to inject this prop)
+    }, [onSelectIssue, data]);
+
+
+    const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({ opacity: 0 });
+    const prevActiveRef = useRef(isActive);
+
+    useEffect(() => {
+        if (!isActive) {
+            prevActiveRef.current = false;
+            return;
+        }
+
+        const justWokeUp = !prevActiveRef.current;
+        if (justWokeUp) {
+            prevActiveRef.current = true;
+        }
+
+        if (localSelectedId && listRef.current) {
+            // Find the selected item element
+            // For tab activation, delay the query to avoid blocking the visibility switch
+            const delay = justWokeUp ? 2 : 0; // 2 RAF for tab switch, immediate for selection change
+
+            let rafId: number;
+            const scheduleUpdate = (remaining: number) => {
+                if (remaining > 0) {
+                    rafId = requestAnimationFrame(() => scheduleUpdate(remaining - 1));
+                } else {
+                    const el = listRef.current?.querySelector(`[data-issue-id="${localSelectedId}"]`) as HTMLElement;
+                    if (el) {
+                        setIndicatorStyle({
+                            top: el.offsetTop,
+                            height: el.offsetHeight,
+                            opacity: 1
+                        });
+                    } else {
+                        setIndicatorStyle({ opacity: 0 });
+                    }
+                }
+            };
+
+            scheduleUpdate(delay);
+            return () => {
+                if (rafId) cancelAnimationFrame(rafId);
+            };
+        } else {
+            setIndicatorStyle({ opacity: 0 });
+        }
+    }, [localSelectedId, data, localCollapsed, isActive]);
+
+
+    const sortedKeys = data.sortedKeys || [];
+    const groups = data.groups || {};
+
+    if (sortedKeys.length === 0 && !vm.isLoading) {
+        return (
+            <div style={{ textAlign: 'center', marginTop: 50, color: 'var(--text-secondary)', fontSize: 13 }}>
+                No issues found in this section.<br />
+                <button onClick={() => vm.refreshData()} style={{ marginTop: 10, background: 'none', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '5px 15px', borderRadius: 4, cursor: 'pointer' }}>Force Refresh</button>
+            </div>
+        );
+    }
+
+    // Force hide indicator if not active to prevent any "ghost" residue
+    // This is a safety guard on top of parent visibility:hidden
+    const finalIndicatorStyle = isActive ? indicatorStyle : { opacity: 0, transition: 'none' };
+
+    return (
+        <div style={{ position: 'relative' }} ref={listRef}>
+            <div className="selection-indicator" style={finalIndicatorStyle} />
+            {sortedKeys.map((key: string) => {
+                const isCollapsed = localCollapsed[key] ?? (key.includes('验证完成') || key.includes('Verification Complete'));
+                const issuesInGroup = groups[key];
+
+                return (
+                    <div key={key}>
+                        <div
+                            className="group-header"
+                            onClick={() => toggleLocalGroup(key)}
+                            style={{
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                userSelect: 'none'
+                            }}
+                        >
+                            <span style={{
+                                fontSize: 10,
+                                width: 12,
+                                display: 'inline-block',
+                                transform: isCollapsed ? 'rotate(-90deg)' : 'none',
+                                transition: 'transform 0.2s',
+                                textAlign: 'center'
+                            }}>▼</span>
+                            <span style={{ flex: 1 }}>{key}</span>
+                            <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 'normal' }}>{issuesInGroup.length}</span>
+                        </div>
+
+                        {!isCollapsed && issuesInGroup.map((i: Issue) => (
+                            <MemoIssueItem
+                                key={i.id}
+                                issue={i}
+                                isSelected={localSelectedId === i.id}
+                                onSelect={onLocalSelect}
+                                onUpdateStatus={handleUpdateStatus}
+                                onUpdatePriority={handleUpdatePriority}
+                                onUpdateVersion={handleUpdateVersion}
+                                onUpdateAssignee={handleUpdateAssignee}
+                                statusList={stableStatusList}
+                                priorityList={stablePriorityList}
+                                versionList={stableVersionListCache[i.project?.id || -1] || []}
+                                groupedMembers={stableGroupedMemberCache[i.project?.id || -1] || stableGroupedMemberCache['global']}
+                                isFollowed={vm.followedIssueIds.has(i.id)}
+                                onToggleFollow={async (id: number) => {
+                                    const followed = vm.followedIssueIds.has(id);
+                                    if (followed) {
+                                        await vm.removeWatcher(id, vm.currentUser!.id);
+                                    } else {
+                                        await vm.addWatcher(id, vm.currentUser!.id);
+                                    }
+                                }}
+                            />
+                        ))}
+                    </div>
+                );
+            })}
+        </div>
+    );
+});
+
+// Remote search results list component
+const RemoteSearchResults = React.memo(({
+    results,
+    isSearching,
+    searchQuery,
+    totalCount,
+    selectedIssueId,
+    onSelectIssue,
+    vm,
+    handleUpdateStatus,
+    handleUpdatePriority,
+    handleUpdateVersion,
+    handleUpdateAssignee,
+    stableStatusList,
+    stablePriorityList,
+    stableVersionListCache,
+    stableGroupedMemberCache
+}: {
+    results: Issue[],
+    isSearching: boolean,
+    searchQuery: string,
+    totalCount: number,
+    selectedIssueId: number | null,
+    onSelectIssue: (id: number, sourceKey: string) => void,
+    vm: any,
+    handleUpdateStatus: (id: number, statusId: number) => void,
+    handleUpdatePriority: (id: number, priorityId: number) => void,
+    handleUpdateVersion: (id: number, versionId: string) => void,
+    handleUpdateAssignee: (id: number, assigneeId: string) => void,
+    stableStatusList: any[],
+    stablePriorityList: any[],
+    stableVersionListCache: Record<number, any[]>,
+    stableGroupedMemberCache: Record<number | string, any>
+}) => {
+    const listRef = useRef<HTMLDivElement>(null);
+    const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({ opacity: 0 });
+
+    // Update selection indicator position
+    useEffect(() => {
+        if (selectedIssueId && listRef.current) {
+            const el = listRef.current.querySelector(`[data-issue-id="${selectedIssueId}"]`) as HTMLElement;
+            if (el) {
+                setIndicatorStyle({
+                    top: el.offsetTop,
+                    height: el.offsetHeight,
+                    opacity: 1
+                });
+            } else {
+                setIndicatorStyle({ opacity: 0 });
+            }
+        } else {
+            setIndicatorStyle({ opacity: 0 });
+        }
+    }, [selectedIssueId, results]);
+
+    if (!searchQuery.trim()) {
+        return (
+            <div style={{ textAlign: 'center', marginTop: 80, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <div style={{ marginBottom: 10 }}>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+                    </svg>
+                </div>
+                Type keywords to search issues on the server<br />
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Supports searching by title, description, and more</span>
+            </div>
+        );
+    }
+
+    if (isSearching) {
+        return (
+            <div style={{ textAlign: 'center', marginTop: 80, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <div style={{ marginBottom: 10 }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                        <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12"></circle>
+                    </svg>
+                </div>
+                Searching on server...
+            </div>
+        );
+    }
+
+    if (results.length === 0) {
+        return (
+            <div style={{ textAlign: 'center', marginTop: 80, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <div style={{ marginBottom: 10 }}>🔍</div>
+                No issues found matching "{searchQuery}"<br />
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Try different keywords</span>
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ padding: '0 0 20px', position: 'relative' }} ref={listRef}>
+            {/* Selection indicator */}
+            <div className="selection-indicator" style={indicatorStyle} />
+
+            {/* Search results header */}
+            <div style={{
+                padding: '10px 15px',
+                fontSize: 11,
+                color: 'var(--text-secondary)',
+                borderBottom: '1px solid var(--border-color)',
+                background: 'var(--bg-secondary)',
+                position: 'sticky',
+                top: 0,
+                zIndex: 10
+            }}>
+                Found {totalCount} results, showing first {results.length}
+            </div>
+
+            {results.map((issue: Issue) => (
+                <div key={issue.id}>
+                    {/* Project and version info tags */}
+                    <div style={{
+                        padding: '6px 15px 2px',
+                        fontSize: 10,
+                        color: 'var(--text-tertiary)',
+                        display: 'flex',
+                        gap: 8,
+                        alignItems: 'center'
+                    }}>
+                        <span style={{
+                            background: 'rgba(12, 102, 255, 0.1)',
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            color: 'var(--accent-color)'
+                        }}>
+                            {issue.project?.name || 'Unknown Project'}
+                        </span>
+                        {issue.fixed_version && (
+                            <span style={{
+                                background: 'rgba(48, 209, 88, 0.1)',
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                color: '#30d158'
+                            }}>
+                                {issue.fixed_version.name}
+                            </span>
+                        )}
+                    </div>
+                    <MemoIssueItem
+                        issue={issue}
+                        isSelected={selectedIssueId === issue.id}
+                        onSelect={(id) => onSelectIssue(id, 'remote-search')}
+                        onUpdateStatus={handleUpdateStatus}
+                        onUpdatePriority={handleUpdatePriority}
+                        onUpdateVersion={handleUpdateVersion}
+                        onUpdateAssignee={handleUpdateAssignee}
+                        statusList={stableStatusList}
+                        priorityList={stablePriorityList}
+                        versionList={stableVersionListCache[issue.project?.id || -1] || []}
+                        groupedMembers={stableGroupedMemberCache[issue.project?.id || -1] || stableGroupedMemberCache['global']}
+                        isFollowed={vm.followedIssueIds.has(issue.id)}
+                        onToggleFollow={async (id: number) => {
+                            const followed = vm.followedIssueIds.has(id);
+                            if (followed) {
+                                await vm.removeWatcher(id, vm.currentUser!.id);
+                            } else {
+                                await vm.addWatcher(id, vm.currentUser!.id);
+                            }
+                        }}
+                    />
+                </div>
+            ))}
+        </div>
+    );
+});
 
 const App: React.FC = () => {
     const vm = useAppViewModel();
@@ -97,10 +772,6 @@ const App: React.FC = () => {
     // Track previous version to detect version switches
     const prevVersionIdRef = useRef<number | null>(vm.selectedVersionId);
     const shouldScrollToSelectedRef = useRef(false);
-
-    // Refs for keyboard navigation
-    const searchInputRef = useRef<HTMLInputElement>(null);
-    const issueListRef2 = useRef<HTMLDivElement>(null);
 
     // Resizable pane widths
     // Sidebar uses fixed width, list uses ratio of remaining space
@@ -391,65 +1062,6 @@ const App: React.FC = () => {
     const handleSelectIssue = useCallback((id: number | null, sourceKey: string = '') => {
         setSelectedIssueState({ id, sourceKey });
     }, []);
-
-    // ── Keyboard shortcuts ───────────────────────────────────────────────────
-    // Get visible issue IDs from current tab for arrow-key navigation
-    const visibleIssueIds = useMemo(() => {
-        const key = currentTabKey;
-        const data = vm.versionViewData[key];
-        if (!data) return [];
-        const ids: number[] = [];
-        for (const groupKey of data.sortedKeys) {
-            for (const issue of data.groups[groupKey] || []) {
-                ids.push(issue.id);
-            }
-        }
-        return ids;
-    }, [vm.versionViewData, currentTabKey]);
-
-    const navigateIssue = useCallback((direction: 'next' | 'prev') => {
-        if (visibleIssueIds.length === 0) return;
-        const currentIdx = selectedIssueId ? visibleIssueIds.indexOf(selectedIssueId) : -1;
-        let nextIdx: number;
-        if (direction === 'next') {
-            nextIdx = currentIdx < visibleIssueIds.length - 1 ? currentIdx + 1 : 0;
-        } else {
-            nextIdx = currentIdx > 0 ? currentIdx - 1 : visibleIssueIds.length - 1;
-        }
-        handleSelectIssue(visibleIssueIds[nextIdx], currentTabKey);
-    }, [visibleIssueIds, selectedIssueId, currentTabKey, handleSelectIssue]);
-
-    useKeyboardShortcuts({
-        onNextIssue: useCallback(() => navigateIssue('next'), [navigateIssue]),
-        onPrevIssue: useCallback(() => navigateIssue('prev'), [navigateIssue]),
-        onSelectIssue: useCallback(() => {
-            // If an issue is already highlighted, scroll to it (detail pane opens automatically)
-            if (selectedIssueId) {
-                const el = document.querySelector(`[data-issue-id="${selectedIssueId}"]`);
-                el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-        }, [selectedIssueId]),
-        onEscape: useCallback(() => {
-            handleSelectIssue(null, currentTabKey);
-            setShowSettings(false);
-        }, [handleSelectIssue, currentTabKey]),
-        onToggleSearch: useCallback(() => {
-            searchInputRef.current?.focus();
-        }, []),
-        onRefresh: useCallback(() => {
-            vm.refreshData();
-        }, [vm.refreshData]),
-        onNewTask: useCallback(() => {
-            // Focus the new task input if visible, otherwise show settings
-            const newTaskInput = document.querySelector('.new-task-input') as HTMLInputElement;
-            if (newTaskInput) {
-                newTaskInput.focus();
-            }
-        }, []),
-        onToggleSettings: useCallback(() => {
-            setShowSettings(prev => !prev);
-        }, []),
-    });
 
     // Stable references for MemoIssueItem props to prevent unnecessary re-renders
     const stableStatusList = useMemo(() => vm.issueStatuses, [vm.issueStatuses]);
@@ -1421,7 +2033,6 @@ const App: React.FC = () => {
                             )}
                         </span>
                         <input
-                            ref={searchInputRef}
                             type="text"
                             placeholder={vm.searchMode === 'remote' ? "Remote search..." : "Local search"}
                             value={vm.searchQuery}
@@ -1763,7 +2374,7 @@ const App: React.FC = () => {
                         ) : (
                             <TabbedIssueList
                                 currentKey={currentTabKey}
-                                versionViewData={vm.versionViewData}
+                                getVersionViewData={vm.getVersionViewData}
                                 vm={vm}
                                 selectedIssueState={selectedIssueState}
                                 handleSelectIssue={handleSelectIssue}
