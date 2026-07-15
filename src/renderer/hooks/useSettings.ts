@@ -58,6 +58,22 @@ export function useSettings(): SettingsState & SettingsActions {
                 } catch (e) {
                     console.warn('Failed to load secure key:', e)
                 }
+                // Secure storage is now authoritative for this key; clear any lingering
+                // plaintext copy so it doesn't sit in localStorage indefinitely.
+                localStorage.removeItem('redmineAPIKey')
+            } else {
+                // Migrate a legacy plaintext key (saved before secure storage existed)
+                // into secure storage, then remove the plaintext copy.
+                const legacyKey = localStorage.getItem('redmineAPIKey')
+                if (legacyKey) {
+                    try {
+                        await window.secureStore?.store('redmineAPIKey', legacyKey)
+                        localStorage.setItem('hasSecureKey', 'true')
+                        localStorage.removeItem('redmineAPIKey')
+                    } catch (e) {
+                        console.warn('Failed to migrate legacy API key to secure storage:', e)
+                    }
+                }
             }
         }
         loadSecureKey()
