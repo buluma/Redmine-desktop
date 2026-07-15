@@ -71,6 +71,57 @@ describe('useIssues - Optimistic Updates', () => {
         expect(mockService.updateIssue).toHaveBeenCalledWith(1, { status_id: 3 })
     })
 
+    it('updateIssue optimistic status/priority change reflects the real name immediately, not just the id', async () => {
+        // Seed allIssues with the target issue (initial state is derived from cachedIssues in localStorage)
+        localStorage.clear()
+        localStorage.setItem('cachedIssues', JSON.stringify([
+            makeIssue({ id: 1, status: { id: 1, name: 'New' }, priority: { id: 1, name: 'Normal' } })
+        ]))
+
+        const { result } = renderHook(() => useIssues())
+
+        // Load statuses/priorities into hook state so the optimistic update has a name to look up
+        mockService.fetchCurrentUser = vi.fn().mockResolvedValue({ id: 1, name: 'User' } as User)
+        mockService.fetchIssueStatuses = vi.fn().mockResolvedValue([
+            { id: 1, name: 'New' },
+            { id: 3, name: 'Done' },
+        ])
+        mockService.fetchIssuePriorities = vi.fn().mockResolvedValue([
+            { id: 1, name: 'Normal' },
+            { id: 5, name: 'Urgent' },
+        ])
+        await act(async () => {
+            await result.current.loadInitialData(mockService, new Set())
+        })
+
+        expect(result.current.allIssues.find(i => i.id === 1)).toBeDefined()
+
+        // Keep the API call pending so we can inspect the optimistic state before it resolves
+        let resolveUpdate: () => void = () => {}
+        mockService.updateIssue = vi.fn(() => new Promise<void>(resolve => { resolveUpdate = resolve }))
+        mockService.fetchIssueDetail = vi.fn().mockResolvedValue(
+            makeIssue({ id: 1, status: { id: 3, name: 'Done' }, priority: { id: 5, name: 'Urgent' } })
+        )
+
+        act(() => {
+            // Not awaited: we want to inspect state applied synchronously before the network call resolves
+            result.current.updateIssue(mockService, 1, { status_id: 3, priority_id: 5 })
+        })
+
+        const optimisticIssue = result.current.allIssues.find(i => i.id === 1)
+        expect(optimisticIssue?.status).toEqual({ id: 3, name: 'Done' })
+        expect(optimisticIssue?.priority).toEqual({ id: 5, name: 'Urgent' })
+
+        // Let the pending update resolve so the test doesn't leak a dangling promise/act warning
+        await act(async () => {
+            resolveUpdate()
+            await Promise.resolve()
+            await Promise.resolve()
+        })
+
+        localStorage.clear()
+    })
+
     it('updateIssue reverts on API failure', async () => {
         const { result } = renderHook(() => useIssues())
 

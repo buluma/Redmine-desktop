@@ -93,10 +93,20 @@ export function useIssues(): IssuesState & IssuesActions {
 
     const isRefreshingRef = useRef(false)
     const followedIssueIdsRef = useRef(followedIssueIds)
+    const issueStatusesRef = useRef(issueStatuses)
+    const issuePrioritiesRef = useRef(issuePriorities)
 
     useEffect(() => {
         followedIssueIdsRef.current = followedIssueIds
     }, [followedIssueIds])
+
+    useEffect(() => {
+        issueStatusesRef.current = issueStatuses
+    }, [issueStatuses])
+
+    useEffect(() => {
+        issuePrioritiesRef.current = issuePriorities
+    }, [issuePriorities])
 
     const loadInitialData = useCallback(async (service: RedmineService, pinnedVersionIds: Set<number>) => {
         setIsLoading(true)
@@ -339,10 +349,14 @@ export function useIssues(): IssuesState & IssuesActions {
             
             // Apply specific field changes
             if (data.status_id !== undefined) {
-                optimistic.status = { ...issue.status, id: data.status_id }
+                // Look up the real name so the change is visible immediately (IssueItem renders status.name),
+                // instead of only updating id and waiting on the follow-up fetchIssueDetail call.
+                const matchedStatus = issueStatusesRef.current.find(s => s.id === data.status_id)
+                optimistic.status = matchedStatus ? { ...issue.status, ...matchedStatus } : { ...issue.status, id: data.status_id }
             }
             if (data.priority_id !== undefined) {
-                optimistic.priority = { ...issue.priority, id: data.priority_id }
+                const matchedPriority = issuePrioritiesRef.current.find(p => p.id === data.priority_id)
+                optimistic.priority = matchedPriority ? { ...issue.priority, ...matchedPriority } : { ...issue.priority, id: data.priority_id }
             }
             if (data.assigned_to_id !== undefined) {
                 optimistic.assigned_to = data.assigned_to_id 
