@@ -1052,6 +1052,10 @@ export function useAppViewModel() {
     // Version counter to detect when we need to recompute
     const depsVersionRef = useRef(0);
     const lastDepsRef = useRef('');
+    // allIssues is compared by reference (all update paths replace it immutably),
+    // so this avoids JSON.stringify-ing the whole issue list on every render just
+    // to detect changes for cache invalidation.
+    const lastAllIssuesRef = useRef<Issue[] | null>(null);
 
     // Compute current active key
     const activeViewKey = useMemo(() => {
@@ -1069,8 +1073,9 @@ export function useAppViewModel() {
         hideVerifiedInFollowed, hideVerifiedInAssigned, groupByMode, statusSortMap
     });
 
-    if (depsString !== lastDepsRef.current) {
+    if (depsString !== lastDepsRef.current || lastAllIssuesRef.current !== allIssues) {
         lastDepsRef.current = depsString;
+        lastAllIssuesRef.current = allIssues;
         depsVersionRef.current++;
         viewDataCacheRef.current = {}; // Invalidate all cached data
     }
