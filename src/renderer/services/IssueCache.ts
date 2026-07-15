@@ -180,32 +180,39 @@ export async function removeMeta(key: string): Promise<void> {
  * Call once on app startup if localStorage has cached issues.
  */
 export async function migrateFromLocalStorage(): Promise<number> {
+    let migratedCount = 0
+
+    // Migrate issues. Guarded independently so a failure here doesn't affect
+    // the followed-ids migration below, and vice versa.
     try {
         const raw = localStorage.getItem('cachedIssues')
-        if (!raw) return 0
+        if (raw) {
+            const issues: Issue[] = JSON.parse(raw)
+            if (Array.isArray(issues) && issues.length > 0) {
+                await saveIssues(issues)
+                migratedCount = issues.length
+                // Only remove the key once its data has actually been persisted.
+                localStorage.removeItem('cachedIssues')
+                console.log(`[IssueCache] Migrated ${issues.length} issues from localStorage to IndexedDB`)
+            }
+        }
+    } catch (e) {
+        console.warn('[IssueCache] Migration of issues from localStorage failed:', e)
+    }
 
-        const issues: Issue[] = JSON.parse(raw)
-        if (!Array.isArray(issues) || issues.length === 0) return 0
-
-        await saveIssues(issues)
-
-        // Also migrate followed issue IDs
+    // Migrate followed issue IDs independently of the issues migration above.
+    try {
         const followedRaw = localStorage.getItem('cachedFollowedIssueIds')
         if (followedRaw) {
             const followedIds: number[] = JSON.parse(followedRaw)
             await saveMeta('followedIssueIds', JSON.stringify(followedIds))
+            localStorage.removeItem('cachedFollowedIssueIds')
         }
-
-        // Clean up localStorage
-        localStorage.removeItem('cachedIssues')
-        localStorage.removeItem('cachedFollowedIssueIds')
-
-        console.log(`[IssueCache] Migrated ${issues.length} issues from localStorage to IndexedDB`)
-        return issues.length
     } catch (e) {
-        console.warn('[IssueCache] Migration from localStorage failed:', e)
-        return 0
+        console.warn('[IssueCache] Migration of followed issue IDs from localStorage failed:', e)
     }
+
+    return migratedCount
 }
 
 export default db

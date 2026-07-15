@@ -13,6 +13,7 @@ import {
     saveMeta,
     getMeta,
     removeMeta,
+    migrateFromLocalStorage,
 } from './IssueCache'
 import { Issue } from '../models/redmine'
 
@@ -205,5 +206,57 @@ describe('Metadata', () => {
         await saveMeta('key', 'v2')
         const value = await getMeta('key')
         expect(value).toBe('v2')
+    })
+})
+
+describe('migrateFromLocalStorage', () => {
+    beforeEach(async () => {
+        await clearAllIssues()
+        const { default: db } = await import('./IssueCache')
+        await db.meta.clear()
+        localStorage.clear()
+    })
+
+    it('migrates both issues and followed IDs, removing both localStorage keys', async () => {
+        const issues = [
+            makeIssue({ id: 1, subject: 'Issue 1' }),
+            makeIssue({ id: 2, subject: 'Issue 2' }),
+        ]
+        localStorage.setItem('cachedIssues', JSON.stringify(issues))
+        localStorage.setItem('cachedFollowedIssueIds', JSON.stringify([1, 2]))
+
+        const migrated = await migrateFromLocalStorage()
+
+        expect(migrated).toBe(2)
+        const cached = await getAllIssues()
+        expect(cached.map(i => i.id).sort()).toEqual([1, 2])
+
+        const followedRaw = await getMeta('followedIssueIds')
+        expect(JSON.parse(followedRaw!)).toEqual([1, 2])
+
+        expect(localStorage.getItem('cachedIssues')).toBeNull()
+        expect(localStorage.getItem('cachedFollowedIssueIds')).toBeNull()
+    })
+
+    it('returns 0 and migrates nothing when there is no cached data', async () => {
+        const migrated = await migrateFromLocalStorage()
+        expect(migrated).toBe(0)
+        expect(await getIssueCount()).toBe(0)
+    })
+
+    it('still migrates and removes issues when followed-ids data is corrupt', async () => {
+        const issues = [makeIssue({ id: 1, subject: 'Issue 1' })]
+        localStorage.setItem('cachedIssues', JSON.stringify(issues))
+        // Malformed JSON for followed IDs - should not roll back the issue migration
+        localStorage.setItem('cachedFollowedIssueIds', '{not valid json')
+
+        const migrated = await migrateFromLocalStorage()
+
+        expect(migrated).toBe(1)
+        const cached = await getAllIssues()
+        expect(cached.map(i => i.id)).toEqual([1])
+
+        // The issues key should be cleaned up even though followed-ids migration failed
+        expect(localStorage.getItem('cachedIssues')).toBeNull()
     })
 })

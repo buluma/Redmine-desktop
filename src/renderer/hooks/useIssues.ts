@@ -86,6 +86,10 @@ export function useIssues(): IssuesState & IssuesActions {
 
     const isRefreshingRef = useRef(false)
     const followedIssueIdsRef = useRef(followedIssueIds)
+    // Tracks whether a network refresh has already populated allIssues, so the
+    // (slower) IndexedDB cache-load effect below doesn't clobber fresher state
+    // with a stale cached snapshot if it resolves afterwards.
+    const hasSetIssuesFromNetworkRef = useRef(false)
 
     useEffect(() => {
         followedIssueIdsRef.current = followedIssueIds
@@ -102,7 +106,7 @@ export function useIssues(): IssuesState & IssuesActions {
                 }
 
                 const cachedIssues = await IssueCache.getAllIssues()
-                if (cachedIssues.length > 0) {
+                if (cachedIssues.length > 0 && !hasSetIssuesFromNetworkRef.current) {
                     setAllIssues(cachedIssues)
                 }
 
@@ -165,6 +169,7 @@ export function useIssues(): IssuesState & IssuesActions {
                 }
             }
 
+            hasSetIssuesFromNetworkRef.current = true
             setAllIssues(prev => {
                 const refreshedVersionIds = new Set(activeVersionArray)
                 const fetchedIssueMap = new Map(allFetchedIssues.map(i => [i.id, i]))
