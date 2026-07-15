@@ -199,6 +199,65 @@ describe('useAppViewModel - optimistic updates', () => {
         expect(result.current.allIssues.find(i => i.id === 1)?.status).toEqual({ id: 1, name: 'New' })
     })
 
+    it('does not let one update\'s rollback or success clobber a different concurrent update\'s field', async () => {
+        const { result } = renderHook(() => useAppViewModel())
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        await waitFor(() => expect(result.current.allIssues.find(i => i.id === 1)).toBeDefined())
+
+        // Call A: status change, kept pending.
+        let resolveA: () => void = () => {}
+        let rejectA: (e: Error) => void = () => {}
+        const pendingA = new Promise<void>((resolve, reject) => { resolveA = resolve; rejectA = reject })
+        // Call B: priority change, kept pending separately.
+        let resolveB: () => void = () => {}
+        const pendingB = new Promise<void>(resolve => { resolveB = resolve })
+
+        mocks.updateIssue.mockReturnValueOnce(pendingA).mockReturnValueOnce(pendingB)
+
+        act(() => {
+            // Neither awaited: both optimistic updates apply, both network calls pending.
+            result.current.updateIssue(1, { status_id: 3 })
+        })
+        act(() => {
+            result.current.updateIssue(1, { priority_id: 5 })
+        })
+
+        let issue = result.current.allIssues.find(i => i.id === 1)
+        expect(issue?.status).toEqual({ id: 3, name: 'Done' })
+        expect(issue?.priority).toEqual({ id: 5, name: 'Urgent' })
+
+        // B's network call succeeds first. The server snapshot it fetches doesn't
+        // know about A's not-yet-applied status change (still "New" server-side).
+        mocks.fetchIssueDetail.mockResolvedValueOnce(
+            makeIssue({ id: 1, status: { id: 1, name: 'New' }, priority: { id: 5, name: 'Urgent' } })
+        )
+        await act(async () => {
+            resolveB()
+            await pendingB
+            await Promise.resolve()
+            await Promise.resolve()
+        })
+
+        // B's success must not stomp A's still-in-flight optimistic status.
+        issue = result.current.allIssues.find(i => i.id === 1)
+        expect(issue?.status).toEqual({ id: 3, name: 'Done' })
+        expect(issue?.priority).toEqual({ id: 5, name: 'Urgent' })
+
+        // A's network call now fails.
+        await act(async () => {
+            rejectA(new Error('Network error'))
+            await pendingA.catch(() => {})
+            await Promise.resolve()
+            await Promise.resolve()
+        })
+
+        // A's rollback must only revert status (its own field), not B's already-applied priority.
+        issue = result.current.allIssues.find(i => i.id === 1)
+        expect(issue?.status).toEqual({ id: 1, name: 'New' })
+        expect(issue?.priority).toEqual({ id: 5, name: 'Urgent' })
+    })
+
     it('applies the optimistic assignee/version change with the real name immediately, not a blank one', async () => {
         mocks.fetchProjects.mockResolvedValue([{ id: 1, name: 'Project One' }])
         mocks.fetchAssignableUsers.mockResolvedValue([{ id: 7, name: 'Alice', groups: [] }])

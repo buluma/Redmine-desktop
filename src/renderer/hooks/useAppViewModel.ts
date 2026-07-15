@@ -139,6 +139,12 @@ export function useAppViewModel() {
         issuePrioritiesRef.current = issuePriorities;
     }, [issuePriorities]);
 
+    // Tracks which Issue fields have an in-flight optimistic update per issue id,
+    // so a concurrent update's rollback or success only touches its own field(s)
+    // instead of replacing the whole issue object and clobbering another
+    // concurrent update that's still in flight or already landed.
+    const pendingFieldsRef = useRef<Record<number, Set<keyof Issue>>>({});
+
     // Tracks whether a network refresh has already populated allIssues, so the
     // (slower) IndexedDB cache-load effect below doesn't clobber fresher state
     // with a stale cached snapshot if it resolves afterwards.
@@ -976,16 +982,47 @@ export function useAppViewModel() {
             optimistic.subject = data.subject;
         }
 
+        const changedKeys: (keyof Issue)[] = [];
+        if (data.status_id !== undefined) changedKeys.push('status');
+        if (data.priority_id !== undefined) changedKeys.push('priority');
+        if (data.assigned_to_id !== undefined) changedKeys.push('assigned_to');
+        if (data.fixed_version_id !== undefined) changedKeys.push('fixed_version');
+        if (data.subject !== undefined) changedKeys.push('subject');
+
+        if (!pendingFieldsRef.current[id]) pendingFieldsRef.current[id] = new Set();
+        changedKeys.forEach(k => pendingFieldsRef.current[id].add(k));
+
         setAllIssues(prev => prev.map(i => i.id === id ? optimistic : i));
 
         try {
             await service.updateIssue(id, data);
             const updated = await service.fetchIssueDetail(id);
-            setAllIssues(prev => prev.map(i => i.id === id ? updated : i));
+            setAllIssues(prev => prev.map(i => {
+                if (i.id !== id) return i;
+                // Keep the current optimistic value for any field a *different*,
+                // still-in-flight update is editing -- this fetch's server snapshot
+                // predates that update landing, so applying it wholesale would
+                // flash the field back to its stale pre-update value.
+                const stillPendingElsewhere = Array.from(pendingFieldsRef.current[id] || [])
+                    .filter(k => !changedKeys.includes(k));
+                if (stillPendingElsewhere.length === 0) return updated;
+                const merged: Issue = { ...updated };
+                stillPendingElsewhere.forEach(k => { (merged as any)[k] = (i as any)[k]; });
+                return merged;
+            }));
         } catch (e: any) {
-            setAllIssues(prev => prev.map(i => i.id === id ? previousIssue : i));
+            setAllIssues(prev => prev.map(i => {
+                if (i.id !== id) return i;
+                // Revert only this call's own field(s) onto the current issue, so a
+                // different concurrent update's already-applied change isn't undone.
+                const reverted: Issue = { ...i };
+                changedKeys.forEach(k => { (reverted as any)[k] = (previousIssue as any)[k]; });
+                return reverted;
+            }));
             setErrorMessage(e.message);
             showToast.error(`Update failed: ${e.message}`);
+        } finally {
+            changedKeys.forEach(k => pendingFieldsRef.current[id]?.delete(k));
         }
     };
 
