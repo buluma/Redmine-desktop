@@ -465,7 +465,8 @@ const IssueListContent = React.memo(({
         <div style={{ position: 'relative' }} ref={listRef}>
             <div className="selection-indicator" style={finalIndicatorStyle} />
             {sortedKeys.map((key: string) => {
-                const isCollapsed = localCollapsed[key] ?? (key.includes('验证完成') || key.includes('Verification Complete'));
+                // All groups start collapsed until the user explicitly expands one.
+                const isCollapsed = localCollapsed[key] ?? true;
                 const issuesInGroup = groups[key];
 
                 return (
@@ -1181,6 +1182,23 @@ const App: React.FC = () => {
         (window as any).ipcRenderer.on('show-settings', handler);
         return () => {
             (window as any).ipcRenderer.off('show-settings', handler);
+        };
+    }, []);
+
+    // Listen for 'open-my-assigned-status' from main process (tray status-count click)
+    const openMyAssignedStatusDepsRef = useRef({ selectProject: vm.selectProject, setSelectedStatusId: vm.setSelectedStatusId });
+    useEffect(() => {
+        openMyAssignedStatusDepsRef.current = { selectProject: vm.selectProject, setSelectedStatusId: vm.setSelectedStatusId };
+    }, [vm.selectProject, vm.setSelectedStatusId]);
+    useEffect(() => {
+        const handler = (_: any, statusId: number) => {
+            const { selectProject, setSelectedStatusId } = openMyAssignedStatusDepsRef.current;
+            selectProject(-3);
+            setSelectedStatusId(statusId);
+        };
+        (window as any).ipcRenderer?.on('open-my-assigned-status', handler);
+        return () => {
+            (window as any).ipcRenderer?.off('open-my-assigned-status', handler);
         };
     }, []);
 

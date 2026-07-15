@@ -403,58 +403,58 @@ describe('useAppViewModel - All Projects view (default state)', () => {
     })
 })
 
-describe('useAppViewModel - tray top issues', () => {
+describe('useAppViewModel - tray status counts', () => {
     beforeEach(() => {
         localStorage.clear()
         vi.clearAllMocks()
 
-        mocks.fetchIssueStatuses.mockResolvedValue([])
         mocks.fetchIssuePriorities.mockResolvedValue([])
         mocks.fetchProjects.mockResolvedValue([])
         mocks.fetchVersions.mockResolvedValue([])
         mocks.fetchAssignableUsers.mockResolvedValue([])
-        mocks.fetchIssues.mockResolvedValue({ issues: [], total_count: 0 })
 
         localStorage.setItem('redmineURL', 'http://redmine.test')
         localStorage.setItem('redmineAPIKey', 'test-key')
     })
 
-    it('sends the top 5 assigned unfinished issues, most urgent first, to the tray via IPC', async () => {
+    it('sends per-status counts of all my assigned issues to the tray, ordered by the server workflow order', async () => {
         const me: User = { id: 1, login: 'me', firstname: 'Michael', lastname: 'B', created_on: '2024-01-01', name: 'Michael' }
         mocks.fetchCurrentUser.mockResolvedValue(me)
-        ;(IssueCache.getAllIssues as any).mockResolvedValue([
-            makeIssue({ id: 1, subject: 'Low prio', assigned_to: { id: 1, name: 'Michael' }, priority: { id: 1, name: 'Low' } }),
-            makeIssue({ id: 2, subject: 'Urgent one', assigned_to: { id: 1, name: 'Michael' }, priority: { id: 5, name: 'Urgent' } }),
-            makeIssue({ id: 3, subject: 'Not mine', assigned_to: { id: 99, name: 'Someone else' }, priority: { id: 5, name: 'Urgent' } }),
-            makeIssue({ id: 4, subject: 'Closed one', status: { id: 5, name: '已关闭' }, assigned_to: { id: 1, name: 'Michael' }, priority: { id: 5, name: 'Urgent' } }),
+        mocks.fetchIssueStatuses.mockResolvedValue([
+            { id: 1, name: 'New' },
+            { id: 2, name: 'In Progress' },
+            { id: 3, name: 'Resolved' },
         ])
+
+        const assignedIssues = [
+            makeIssue({ id: 1, status: { id: 1, name: 'New' }, assigned_to: { id: 1, name: 'Michael' } }),
+            makeIssue({ id: 2, status: { id: 1, name: 'New' }, assigned_to: { id: 1, name: 'Michael' } }),
+            makeIssue({ id: 3, status: { id: 3, name: 'Resolved' }, assigned_to: { id: 1, name: 'Michael' } }),
+            makeIssue({ id: 4, status: { id: 2, name: 'In Progress' }, assigned_to: { id: 1, name: 'Michael' } }),
+        ]
+        const notMine = makeIssue({ id: 5, status: { id: 1, name: 'New' }, assigned_to: { id: 99, name: 'Someone else' } })
+        ;(IssueCache.getAllIssues as any).mockResolvedValue([...assignedIssues, notMine])
         // refreshIssues' post-load cleanup pass drops any previously-assigned/followed issue
         // that the fresh watcher_id/assigned_to_id fetch doesn't also return, so it doesn't
         // silently purge our seeded cache issues as "no longer assigned" before the test asserts.
-        mocks.fetchIssues.mockResolvedValue({
-            issues: [
-                makeIssue({ id: 1, subject: 'Low prio', assigned_to: { id: 1, name: 'Michael' }, priority: { id: 1, name: 'Low' } }),
-                makeIssue({ id: 2, subject: 'Urgent one', assigned_to: { id: 1, name: 'Michael' }, priority: { id: 5, name: 'Urgent' } }),
-                makeIssue({ id: 4, subject: 'Closed one', status: { id: 5, name: '已关闭' }, assigned_to: { id: 1, name: 'Michael' }, priority: { id: 5, name: 'Urgent' } }),
-            ],
-            total_count: 3,
-        })
+        mocks.fetchIssues.mockResolvedValue({ issues: assignedIssues, total_count: assignedIssues.length })
 
         renderHook(() => useAppViewModel())
 
         await waitFor(() => {
-            const calls = (window as any).ipcRenderer.send.mock.calls.filter((c: any[]) => c[0] === 'update-tray-issues')
+            const calls = (window as any).ipcRenderer.send.mock.calls.filter((c: any[]) => c[0] === 'update-tray-status-counts')
             const last = calls[calls.length - 1]
             expect(last?.[1]?.length).toBeGreaterThan(0)
         })
 
-        const calls = (window as any).ipcRenderer.send.mock.calls.filter((c: any[]) => c[0] === 'update-tray-issues')
+        const calls = (window as any).ipcRenderer.send.mock.calls.filter((c: any[]) => c[0] === 'update-tray-status-counts')
         const lastPayload = calls[calls.length - 1][1]
 
-        // Excludes issues not assigned to me and closed issues; urgent sorts first.
+        // Excludes the issue not assigned to me; ordered to match issueStatuses (server workflow order).
         expect(lastPayload).toEqual([
-            { id: 2, subject: 'Urgent one', priorityName: 'Urgent' },
-            { id: 1, subject: 'Low prio', priorityName: 'Low' },
+            { statusId: 1, statusName: 'New', count: 2 },
+            { statusId: 2, statusName: 'In Progress', count: 1 },
+            { statusId: 3, statusName: 'Resolved', count: 1 },
         ])
     })
 })

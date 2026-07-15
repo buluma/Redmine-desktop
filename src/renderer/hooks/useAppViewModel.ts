@@ -699,8 +699,8 @@ export function useAppViewModel() {
         );
         const myUnfinishedCount = myIssues.length;
 
-        // Rank issues by priority urgency (urgent/high first) so the tray menu
-        // surfaces the issues that matter most, not just whichever loaded first.
+        // Rank issues by priority urgency (urgent/high first) so the tray badge
+        // reflects the issues that matter most, not just whichever loaded first.
         const priorityRank = (i: Issue): number => {
             const pName = (i.priority?.name || '').toLowerCase()
             if (pName.includes('urgent') || pName.includes('immediate')) return 0
@@ -708,11 +708,21 @@ export function useAppViewModel() {
             if (pName.includes('medium') || pName.includes('normal')) return 2
             return 3
         }
-        const topIssues = [...myIssues]
-            .sort((a, b) => priorityRank(a) - priorityRank(b))
-            .slice(0, 5)
-            .map(i => ({ id: i.id, subject: i.subject, priorityName: i.priority?.name || '' }));
-        (window as any).ipcRenderer?.send('update-tray-issues', topIssues);
+
+        // Tray menu: counts per status across ALL issues assigned to me (matching
+        // "My Assigned" grouped by status, not just the unfinished subset above),
+        // ordered to match the server's status workflow order.
+        const statusRank = new Map(issueStatuses.map((s, idx) => [s.name, idx]));
+        const assignedIssues = allIssues.filter(i => i.assigned_to?.id === currentUser.id);
+        const countsByStatus = new Map<number, { statusId: number; statusName: string; count: number }>();
+        for (const issue of assignedIssues) {
+            const entry = countsByStatus.get(issue.status.id);
+            if (entry) entry.count++;
+            else countsByStatus.set(issue.status.id, { statusId: issue.status.id, statusName: issue.status.name, count: 1 });
+        }
+        const statusCounts = Array.from(countsByStatus.values())
+            .sort((a, b) => (statusRank.get(a.statusName) ?? 999) - (statusRank.get(b.statusName) ?? 999));
+        (window as any).ipcRenderer?.send('update-tray-status-counts', statusCounts);
 
         if (showBadge) {
             // Determine urgency based on priority: if any high-urgency issues, show red; if any medium, show orange; else green
@@ -731,7 +741,7 @@ export function useAppViewModel() {
         } else {
             (window as any).ipcRenderer?.send('update-badge', { count: 0, urgency: 'none' });
         }
-    }, [allIssues, showBadge, currentUser]);
+    }, [allIssues, showBadge, currentUser, issueStatuses]);
 
     const saveSettings = async (url: string, key: string) => {
         localStorage.setItem('redmineURL', url);
