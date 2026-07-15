@@ -78,8 +78,8 @@ describe('IssueCache', () => {
 describe('Metadata', () => {
     beforeEach(async () => {
         // Clear meta table
-        const { default: db } = await import('./IssueCache')
-        await db.meta.clear()
+        const { default: getDb } = await import('./IssueCache')
+        await getDb().meta.clear()
     })
 
     it('saves and retrieves metadata', async () => {
@@ -111,8 +111,8 @@ describe('Metadata', () => {
 describe('migrateFromLocalStorage', () => {
     beforeEach(async () => {
         await clearAllIssues()
-        const { default: db } = await import('./IssueCache')
-        await db.meta.clear()
+        const { default: getDb } = await import('./IssueCache')
+        await getDb().meta.clear()
         localStorage.clear()
     })
 
@@ -157,5 +157,44 @@ describe('migrateFromLocalStorage', () => {
 
         // The issues key should be cleaned up even though followed-ids migration failed
         expect(localStorage.getItem('cachedIssues')).toBeNull()
+    })
+})
+
+describe('per-server cache scoping', () => {
+    beforeEach(() => {
+        localStorage.removeItem('redmineURL')
+    })
+
+    it('does not show issues cached under a different redmineURL', async () => {
+        localStorage.setItem('redmineURL', 'https://scope-test-1-a.example.com')
+        await saveIssues([makeIssue({ id: 1, subject: 'From server A' })])
+        expect(await getAllIssues()).toHaveLength(1)
+
+        localStorage.setItem('redmineURL', 'https://scope-test-1-b.example.com')
+        expect(await getAllIssues()).toHaveLength(0)
+
+        await saveIssues([makeIssue({ id: 1, subject: 'From server B (different issue, same id)' })])
+        expect((await getAllIssues())[0].subject).toBe('From server B (different issue, same id)')
+    })
+
+    it('keeps a server\'s cache intact when switching away and back to it', async () => {
+        localStorage.setItem('redmineURL', 'https://scope-test-2-a.example.com')
+        await saveIssues([makeIssue({ id: 1, subject: 'From server A' })])
+
+        localStorage.setItem('redmineURL', 'https://scope-test-2-b.example.com')
+        await saveIssues([makeIssue({ id: 2, subject: 'From server B' })])
+
+        localStorage.setItem('redmineURL', 'https://scope-test-2-a.example.com')
+        const cached = await getAllIssues()
+        expect(cached).toHaveLength(1)
+        expect(cached[0].subject).toBe('From server A')
+    })
+
+    it('treats http/https and trailing-slash variants of the same host as the same scope', async () => {
+        localStorage.setItem('redmineURL', 'https://scope-test-3.example.com/')
+        await saveIssues([makeIssue({ id: 1, subject: 'Cached' })])
+
+        localStorage.setItem('redmineURL', 'http://scope-test-3.example.com')
+        expect(await getAllIssues()).toHaveLength(1)
     })
 })

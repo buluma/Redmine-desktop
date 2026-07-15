@@ -9,6 +9,10 @@ import { Issue } from '../models/redmine'
  * - Non-blocking async reads (won't freeze the main thread)
  * - Structured data with indexes for fast queries
  * - Better serialization (no JSON.stringify/parse overhead)
+ *
+ * Scoped per Redmine server: switching redmineURL (a different company/
+ * instance) gets its own isolated database instead of sharing one cache,
+ * since issue IDs from different servers can collide.
  */
 
 interface CachedIssue extends Issue {
@@ -22,12 +26,14 @@ interface CacheMeta {
     updatedAt: number
 }
 
+const BASE_DB_NAME = 'RedmineDesktopCache'
+
 class IssueCacheDB extends Dexie {
     issues!: Table<CachedIssue, number>
     meta!: Table<CacheMeta, string>
 
-    constructor() {
-        super('RedmineDesktopCache')
+    constructor(dbName: string) {
+        super(dbName)
         this.version(1).stores({
             issues: 'id, fixed_version.id, assigned_to.id, status.id, cachedAt',
             meta: 'key',
@@ -35,7 +41,29 @@ class IssueCacheDB extends Dexie {
     }
 }
 
-const db = new IssueCacheDB()
+/** Normalizes a Redmine URL into a stable scope key (host only, no protocol/trailing slash/case). */
+function getScopeKey(): string {
+    try {
+        const url = localStorage.getItem('redmineURL') || ''
+        return url.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/+$/, '')
+    } catch {
+        return ''
+    }
+}
+
+const dbInstances = new Map<string, IssueCacheDB>()
+
+/** Returns the Dexie instance for the currently-configured Redmine server, creating it on first use. */
+function getDb(): IssueCacheDB {
+    const scopeKey = getScopeKey()
+    const dbName = scopeKey ? `${BASE_DB_NAME}::${scopeKey}` : BASE_DB_NAME
+    let instance = dbInstances.get(dbName)
+    if (!instance) {
+        instance = new IssueCacheDB(dbName)
+        dbInstances.set(dbName, instance)
+    }
+    return instance
+}
 
 // ── Issue Operations ────────────────────────────────────────────────────────
 
@@ -44,6 +72,7 @@ const db = new IssueCacheDB()
  * Preserves existing cachedAt for unchanged issues.
  */
 export async function saveIssues(issues: Issue[]): Promise<void> {
+    const db = getDb()
     const now = Date.now()
     const existing = await db.issues.bulkGet(issues.map(i => i.id))
     const existingMap = new Map(existing.filter(Boolean).map(e => [e!.id, e!]))
@@ -60,7 +89,7 @@ export async function saveIssues(issues: Issue[]): Promise<void> {
  * Get all cached issues.
  */
 export async function getAllIssues(): Promise<Issue[]> {
-    const cached = await db.issues.toArray()
+    const cached = await getDb().issues.toArray()
     // Strip internal fields
     return cached.map(({ cachedAt, ...issue }) => issue)
 }
@@ -69,7 +98,7 @@ export async function getAllIssues(): Promise<Issue[]> {
  * Clear all cached issues.
  */
 export async function clearAllIssues(): Promise<void> {
-    await db.issues.clear()
+    await getDb().issues.clear()
 }
 
 // ── Metadata Operations ─────────────────────────────────────────────────────
@@ -78,14 +107,14 @@ export async function clearAllIssues(): Promise<void> {
  * Save a metadata key-value pair.
  */
 export async function saveMeta(key: string, value: string): Promise<void> {
-    await db.meta.put({ key, value, updatedAt: Date.now() })
+    await getDb().meta.put({ key, value, updatedAt: Date.now() })
 }
 
 /**
  * Get a metadata value by key.
  */
 export async function getMeta(key: string): Promise<string | null> {
-    const entry = await db.meta.get(key)
+    const entry = await getDb().meta.get(key)
     return entry?.value ?? null
 }
 
@@ -93,7 +122,7 @@ export async function getMeta(key: string): Promise<string | null> {
  * Remove a metadata entry.
  */
 export async function removeMeta(key: string): Promise<void> {
-    await db.meta.delete(key)
+    await getDb().meta.delete(key)
 }
 
 // ── Migration Helpers ───────────────────────────────────────────────────────
@@ -138,4 +167,4 @@ export async function migrateFromLocalStorage(): Promise<number> {
     return migratedCount
 }
 
-export default db
+export default getDb
