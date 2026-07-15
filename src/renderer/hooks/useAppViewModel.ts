@@ -692,25 +692,34 @@ export function useAppViewModel() {
     useEffect(() => {
         if (!currentUser) return;
 
-        if (showBadge) {
-            const myIssues = allIssues.filter(i =>
-                i.assigned_to?.id === currentUser.id &&
-                !i.status.name.includes('完成') &&
-                !i.status.name.includes('关闭')
-            );
-            const myUnfinishedCount = myIssues.length;
+        const myIssues = allIssues.filter(i =>
+            i.assigned_to?.id === currentUser.id &&
+            !i.status.name.includes('完成') &&
+            !i.status.name.includes('关闭')
+        );
+        const myUnfinishedCount = myIssues.length;
 
+        // Rank issues by priority urgency (urgent/high first) so the tray menu
+        // surfaces the issues that matter most, not just whichever loaded first.
+        const priorityRank = (i: Issue): number => {
+            const pName = (i.priority?.name || '').toLowerCase()
+            if (pName.includes('urgent') || pName.includes('immediate')) return 0
+            if (pName.includes('high')) return 1
+            if (pName.includes('medium') || pName.includes('normal')) return 2
+            return 3
+        }
+        const topIssues = [...myIssues]
+            .sort((a, b) => priorityRank(a) - priorityRank(b))
+            .slice(0, 5)
+            .map(i => ({ id: i.id, subject: i.subject, priorityName: i.priority?.name || '' }));
+        (window as any).ipcRenderer?.send('update-tray-issues', topIssues);
+
+        if (showBadge) {
             // Determine urgency based on priority: if any high-urgency issues, show red; if any medium, show orange; else green
             let urgency: 'none' | 'low' | 'medium' | 'high' = 'low'
             if (myUnfinishedCount > 0) {
-                const hasHighPriority = myIssues.some(i => {
-                    const pName = (i.priority?.name || '').toLowerCase()
-                    return pName.includes('urgent') || pName.includes('high') || pName.includes('immediate')
-                })
-                const hasMediumPriority = myIssues.some(i => {
-                    const pName = (i.priority?.name || '').toLowerCase()
-                    return pName.includes('medium') || pName.includes('normal')
-                })
+                const hasHighPriority = myIssues.some(i => priorityRank(i) <= 1)
+                const hasMediumPriority = myIssues.some(i => priorityRank(i) === 2)
 
                 if (hasHighPriority) urgency = 'high'
                 else if (hasMediumPriority) urgency = 'medium'

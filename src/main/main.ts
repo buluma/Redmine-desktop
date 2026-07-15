@@ -50,6 +50,7 @@ let tray: Tray | null = null
 let trayMenu: Menu | null = null
 let currentBadgeCount = 0
 let currentBadgeUrgency: 'none' | 'low' | 'medium' | 'high' = 'none'
+let currentTopIssues: { id: number; subject: string; priorityName: string }[] = []
 
 // Cached tray icons
 type TrayIconVariant = 'gray' | 'red' | 'orange' | 'green'
@@ -84,8 +85,32 @@ function cacheTrayIcons() {
     trayIconCache['red'] = generateColoredIcon('#ff453a')
 }
 
+function openIssueFromTray(issueId: number) {
+    if (!win || win.isDestroyed()) {
+        createWindow()
+    }
+    win?.show()
+    win?.focus()
+    win?.webContents.send('open-issue-by-id', issueId)
+}
+
+function truncateForMenu(text: string, max = 42): string {
+    return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
+
 function buildTrayContextMenu() {
     const isDev = !app.isPackaged
+    const topIssuesItems: Electron.MenuItemConstructorOptions[] = currentTopIssues.length > 0
+        ? [
+            { label: 'My Issues', enabled: false },
+            ...currentTopIssues.map(issue => ({
+                label: `#${issue.id}  ${truncateForMenu(issue.subject)}`,
+                sublabel: issue.priorityName || undefined,
+                click: () => openIssueFromTray(issue.id),
+            })),
+            { type: 'separator' as const },
+        ]
+        : []
     trayMenu = Menu.buildFromTemplate([
         {
             label: 'Show Redmine',
@@ -99,6 +124,7 @@ function buildTrayContextMenu() {
             }
         },
         { type: 'separator' },
+        ...topIssuesItems,
         {
             label: 'Settings...',
             accelerator: 'CmdOrCtrl+,',
@@ -451,6 +477,12 @@ ipcMain.on('update-badge', (_, data: { count: number; urgency?: 'none' | 'low' |
         app.setBadgeCount(0)
     }
 
+    updateTrayAppearance()
+})
+
+ipcMain.on('update-tray-issues', (_, issues: { id: number; subject: string; priorityName: string }[]) => {
+    currentTopIssues = Array.isArray(issues) ? issues : []
+    buildTrayContextMenu()
     updateTrayAppearance()
 })
 
