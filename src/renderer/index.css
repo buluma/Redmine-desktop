@@ -508,3 +508,37 @@ body {
   background: rgba(128, 128, 128, 0.2) !important;
   opacity: 1 !important;
 }
+
+/* Keyboard-navigation focus ring. Uses :focus-visible so mouse clicks
+   (which also focus form controls) don't show a ring -- only Tab/keyboard
+   focus does. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+select:focus-visible {
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
+/* Hover affordance for the invisible-select-over-text pattern used by the
+   priority/version/assignee inline editors, so it reads as interactive
+   before a user discovers the small chevron hint. */
+.inline-field-select {
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.inline-field-select:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.light-theme .inline-field-select:hover {
+  background-color: rgba(0, 0, 0, 0.06);
+}
