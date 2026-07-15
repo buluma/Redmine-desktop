@@ -1175,6 +1175,7 @@ export function useAppViewModel() {
 
     // Compute current active key
     const activeViewKey = useMemo(() => {
+        if (selectedProjectId === -1) return 'all'; // All Projects: no project/version filter
         if (selectedProjectId === -2) return '-2';
         if (selectedProjectId === -3) return '-3';
         if (selectedVersionId) return selectedVersionId.toString();
@@ -1207,6 +1208,13 @@ export function useAppViewModel() {
             if (selectedStatusId && i.status.id !== selectedStatusId) return false;
 
             // Check if issue belongs to this bucket
+            if (key === 'all') {
+                const matchAssignee = !selectedAssigneeId || i.assigned_to?.id === selectedAssigneeId;
+                const assignedWatchers = getAssignedWatchers(i);
+                const matchAssignedWatchers = selectedAssignedWatcherIds.size === 0 ||
+                    assignedWatchers.some(aw => selectedAssignedWatcherIds.has(aw.id));
+                return matchAssignee && matchAssignedWatchers;
+            }
             if (key === '-2') {
                 return followedIssueIds.has(i.id) &&
                     (!hideVerifiedInFollowed || !i.status.name.includes('验证完成'));

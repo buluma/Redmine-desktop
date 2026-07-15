@@ -721,11 +721,12 @@ const App: React.FC = () => {
 
     // Derived current tab key
     const currentTabKey = useMemo(() =>
-        vm.selectedProjectId === -2 ? '-2' :
-            vm.selectedProjectId === -3 ? '-3' :
-                vm.selectedVersionId ? vm.selectedVersionId.toString() :
-                    // Default to project bucket if no version is selected
-                    (vm.selectedProjectId !== null ? `p-${vm.selectedProjectId}` : ''),
+        vm.selectedProjectId === -1 ? 'all' :
+            vm.selectedProjectId === -2 ? '-2' :
+                vm.selectedProjectId === -3 ? '-3' :
+                    vm.selectedVersionId ? vm.selectedVersionId.toString() :
+                        // Default to project bucket if no version is selected
+                        (vm.selectedProjectId !== null ? `p-${vm.selectedProjectId}` : ''),
         [vm.selectedProjectId, vm.selectedVersionId]
     );
 
