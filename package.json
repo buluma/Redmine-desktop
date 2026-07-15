@@ -39,18 +39,18 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@types/react-window": "^1.8.8",
-    "@vitejs/plugin-react": "^4.5.0",
-    "concurrently": "^8.2.2",
-    "electron": "^43.1.0",
+    "@vitejs/plugin-react": "^6.0.3",
+    "concurrently": "^10.0.3",
+    "electron": "^43.1.1",
     "electron-builder": "^26.15.3",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
-    "typescript": "^5.9.3",
-    "vite": "^6.0.0",
-    "vite-plugin-electron": "^1.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4",
+    "vite-plugin-electron": "^1.1.0",
     "vite-plugin-electron-renderer": "^1.0.0",
-    "vitest": "^3.2.7",
-    "wait-on": "^7.2.0"
+    "vitest": "^4.1.10",
+    "wait-on": "^9.0.10"
   },
   "overrides": {
     "dompurify": "^3.4.12"
