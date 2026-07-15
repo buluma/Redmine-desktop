@@ -359,6 +359,54 @@ describe('useAppViewModel - secure API key storage', () => {
     })
 })
 
+describe('useAppViewModel - transparencyLevel', () => {
+    beforeEach(() => {
+        localStorage.clear()
+        vi.clearAllMocks()
+        mocks.fetchCurrentUser.mockResolvedValue(mockUser)
+        mocks.fetchIssueStatuses.mockResolvedValue([])
+        mocks.fetchIssuePriorities.mockResolvedValue([])
+        mocks.fetchProjects.mockResolvedValue([])
+    })
+
+    it('defaults to 0 (opaque) when nothing has ever been stored', () => {
+        const { result } = renderHook(() => useAppViewModel())
+        expect(result.current.transparencyLevel).toBe(0)
+    })
+
+    it('migrates the legacy enableTransparency=true boolean to a level of 35', () => {
+        localStorage.setItem('enableTransparency', 'true')
+        const { result } = renderHook(() => useAppViewModel())
+        expect(result.current.transparencyLevel).toBe(35)
+    })
+
+    it('migrates the legacy enableTransparency=false boolean to a level of 0', () => {
+        localStorage.setItem('enableTransparency', 'false')
+        const { result } = renderHook(() => useAppViewModel())
+        expect(result.current.transparencyLevel).toBe(0)
+    })
+
+    it('a stored transparencyLevel takes precedence over the legacy boolean', () => {
+        localStorage.setItem('enableTransparency', 'true')
+        localStorage.setItem('transparencyLevel', '80')
+        const { result } = renderHook(() => useAppViewModel())
+        expect(result.current.transparencyLevel).toBe(80)
+    })
+
+    it('setTransparencyLevel updates state and persists under the new key', async () => {
+        const { result } = renderHook(() => useAppViewModel())
+
+        act(() => {
+            result.current.setTransparencyLevel(60)
+        })
+
+        expect(result.current.transparencyLevel).toBe(60)
+        await waitFor(() => {
+            expect(localStorage.getItem('transparencyLevel')).toBe('60')
+        })
+    })
+})
+
 describe('useAppViewModel - IndexedDB issue cache', () => {
     beforeEach(() => {
         localStorage.clear()

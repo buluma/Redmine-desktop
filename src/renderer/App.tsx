@@ -1728,7 +1728,18 @@ const App: React.FC = () => {
                                 <option value="600">10 Minutes</option>
                             </select>
                             <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Transparency</span>
-                            <input type="checkbox" checked={vm.enableTransparency} onChange={e => vm.setEnableTransparency(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--accent-color)', cursor: 'pointer' }} />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    value={vm.transparencyLevel}
+                                    onChange={e => vm.setTransparencyLevel(parseInt(e.target.value))}
+                                    aria-label="Transparency level"
+                                    style={{ flex: 1, accentColor: 'var(--accent-color)', cursor: 'pointer' }}
+                                />
+                                <span style={{ fontSize: 11, color: 'var(--text-secondary)', width: 32, textAlign: 'right' }}>{vm.transparencyLevel}%</span>
+                            </div>
                             <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Theme</span>
                             <select value={vm.appTheme} onChange={e => vm.setAppTheme(e.target.value)} style={{ padding: '8px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 6 }}>
                                 <option value="dark">Dark</option>
@@ -1816,7 +1827,13 @@ const App: React.FC = () => {
     const isLightTheme = vm.appTheme === 'light';
 
     return (
-        <div className={`app-container ${isLightTheme ? 'light-theme' : ''} ${vm.enableTransparency && !isLightTheme ? 'transparency-enabled' : ''}`} style={{ background: vm.enableTransparency && !isLightTheme ? 'rgba(0,0,0,0.02)' : 'var(--bg-color)' }}>
+        <div
+            className={`app-container ${isLightTheme ? 'light-theme' : ''} ${vm.transparencyLevel > 0 && !isLightTheme ? 'transparency-enabled' : ''}`}
+            style={{
+                background: vm.transparencyLevel > 0 && !isLightTheme ? 'rgba(0,0,0,0.02)' : 'var(--bg-color)',
+                ['--transparency-level' as any]: vm.transparencyLevel / 100,
+            }}
+        >
             {/* Title bar drag region for window dragging */}
             <div className="title-bar-drag-region" />
 
