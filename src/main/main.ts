@@ -71,11 +71,10 @@ function generateColoredIcon(baseColor: string): Electron.NativeImage {
     <path d="M17,10 L22,11 L17,12 Z" fill="${baseColor === '#808080' ? '#999' : '#f4a261'}"/>
   </g>
 </svg>`
-    const img = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`)
-    if (process.platform === 'darwin') {
-        img.setTemplateImage(true)
-    }
-    return img
+    // Not a template image: template mode makes macOS render the icon as a plain
+    // monochrome silhouette (ignoring these colors entirely), which would defeat
+    // the whole point of gray/green/orange/red urgency coloring.
+    return nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`)
 }
 
 function cacheTrayIcons() {
