@@ -27,9 +27,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
       
-      # Build arm64 only
+      # Build arm64 only. --publish never: electron-builder >=26 auto-publishes to
+      # GitHub the moment it sees a tag + GH_TOKEN, which races with (and breaks)
+      # the dedicated `release` job below that assembles the full, changelog'd release.
       - name: Build Electron app
-        run: npm run build -- --mac --arm64
+        run: npm run build -- --mac --arm64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -62,7 +64,7 @@ jobs:
         run: npm ci
       
       - name: Build Electron app
-        run: npm run build -- --win --x64 --ia32
+        run: npm run build -- --win --x64 --ia32 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
