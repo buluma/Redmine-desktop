@@ -15,6 +15,29 @@ import { ConflictDialog } from './components/ConflictDialog';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 
+// Shared "invisible select overlaid on text" pattern used by the priority,
+// version, and assignee inline editors below -- same value display + hidden
+// native <select> + chevron hint, just different display value / options.
+const InlineFieldSelect: React.FC<{
+    displayValue: string
+    value: string | number
+    onChange: (value: string) => void
+    children: React.ReactNode
+}> = ({ displayValue, value, onChange, children }) => (
+    <span style={{ color: 'var(--text-secondary)', fontSize: 10, position: 'relative' }}>
+        {displayValue}
+        <select
+            value={value}
+            onClick={e => e.stopPropagation()}
+            onChange={e => onChange(e.target.value)}
+            style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+        >
+            {children}
+        </select>
+        <span style={{ marginLeft: 3, fontSize: 10, color: 'var(--text-secondary)' }}>⌄</span>
+    </span>
+);
+
 const MemoIssueItem = React.memo(({
     issue,
     isSelected,
@@ -80,56 +103,56 @@ const MemoIssueItem = React.memo(({
                             <span style={{ marginLeft: 3, fontSize: 10 }}>⌄</span>
                         </span>
                         <span>•</span>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: 10, position: 'relative' }}>
-                            {issue.priority.name}
-                            <select value={issue.priority.id} onClick={e => e.stopPropagation()} onChange={e => onUpdatePriority(issue.id, parseInt(e.target.value))} style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}>
-                                {priorityList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                            </select>
-                            <span style={{ marginLeft: 3, fontSize: 10, color: 'var(--text-secondary)' }}>⌄</span>
-                        </span>
+                        <InlineFieldSelect
+                            displayValue={issue.priority.name}
+                            value={issue.priority.id}
+                            onChange={v => onUpdatePriority(issue.id, parseInt(v))}
+                        >
+                            {priorityList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </InlineFieldSelect>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         <span style={{ color: 'var(--text-secondary)' }}>▷</span>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: 10, position: 'relative' }}>
-                            {issue.fixed_version?.name || '-'}
-                            <select value={issue.fixed_version?.id || ''} onClick={e => e.stopPropagation()} onChange={e => onUpdateVersion(issue.id, e.target.value)} style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}>
-                                <option value="">-</option>
-                                {versionList.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                            </select>
-                            <span style={{ marginLeft: 3, fontSize: 10, color: 'var(--text-secondary)' }}>⌄</span>
-                        </span>
+                        <InlineFieldSelect
+                            displayValue={issue.fixed_version?.name || '-'}
+                            value={issue.fixed_version?.id || ''}
+                            onChange={v => onUpdateVersion(issue.id, v)}
+                        >
+                            <option value="">-</option>
+                            {versionList.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                        </InlineFieldSelect>
                         <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>👤</span>
-                        <span style={{ color: 'var(--text-secondary)', fontSize: 10, position: 'relative' }}>
-                            {issue.assigned_to?.name || '-'}
-                            <select value={issue.assigned_to?.id || ''} onClick={e => e.stopPropagation()} onChange={e => onUpdateAssignee(issue.id, e.target.value)} style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}>
-                                <option value="">-</option>
-                                {(() => {
-                                    const { grouped, noGroup, sortedGroups } = groupedMembers;
-                                    if (sortedGroups.length === 0) {
-                                        return noGroup.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>);
-                                    }
-                                    return (
-                                        <>
-                                            {sortedGroups.map(g => (
-                                                <optgroup key={g} label={g}>
-                                                    {grouped[g].sort((a, b) => a.name.localeCompare(b.name)).map(m => (
-                                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                                    ))}
-                                                </optgroup>
-                                            ))}
-                                            {noGroup.length > 0 && (
-                                                <optgroup label="Others">
-                                                    {noGroup.sort((a, b) => a.name.localeCompare(b.name)).map(m => (
-                                                        <option key={m.id} value={m.id}>{m.name}</option>
-                                                    ))}
-                                                </optgroup>
-                                            )}
-                                        </>
-                                    );
-                                })()}
-                            </select>
-                            <span style={{ marginLeft: 3, fontSize: 10, color: 'var(--text-secondary)' }}>⌄</span>
-                        </span>
+                        <InlineFieldSelect
+                            displayValue={issue.assigned_to?.name || '-'}
+                            value={issue.assigned_to?.id || ''}
+                            onChange={v => onUpdateAssignee(issue.id, v)}
+                        >
+                            <option value="">-</option>
+                            {(() => {
+                                const { grouped, noGroup, sortedGroups } = groupedMembers;
+                                if (sortedGroups.length === 0) {
+                                    return noGroup.map((m: any) => <option key={m.id} value={m.id}>{m.name}</option>);
+                                }
+                                return (
+                                    <>
+                                        {sortedGroups.map(g => (
+                                            <optgroup key={g} label={g}>
+                                                {grouped[g].sort((a, b) => a.name.localeCompare(b.name)).map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                ))}
+                                            </optgroup>
+                                        ))}
+                                        {noGroup.length > 0 && (
+                                            <optgroup label="Others">
+                                                {noGroup.sort((a, b) => a.name.localeCompare(b.name)).map(m => (
+                                                    <option key={m.id} value={m.id}>{m.name}</option>
+                                                ))}
+                                            </optgroup>
+                                        )}
+                                    </>
+                                );
+                            })()}
+                        </InlineFieldSelect>
                     </div>
                 </div>
             </div>
