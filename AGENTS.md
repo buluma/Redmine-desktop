@@ -49,32 +49,31 @@ This project is a cross-platform Redmine client designed to provide a smooth, be
 
 ### v1.0.11: Architecture Improvements & Offline Support (Current Development)
 
-#### Architecture Refactoring
-- **ViewModel Split**: Decomposed monolithic `useAppViewModel.ts` (~1340 lines) into focused hooks:
-    - `useSettings.ts` - Theme, server settings
-    - `useProjects.ts` - Project/version selection
-    - `useIssues.ts` - Issue state, optimistic updates, offline queue
-    - `useSearch.ts` - Remote search functionality
-    - `useFilteredIssues.ts` - Filtering, grouping, sorting
-- **Component Split**: Broke `App.tsx` into focused components:
-    - `TabbedIssueList.tsx` - Issue list with tabs
-    - `IssueListContent.tsx` - Filtered/grouped issue display
-    - `NoteEditor.tsx` - Issue note creation
-    - `RemoteSearchResults.tsx` - Search results
-- **Component Extraction**: Created reusable components:
-    - `ErrorBoundary.tsx` - React error boundary with Toast notifications
-    - `Toast.tsx` - Notification system
-    - `IssueItem.tsx` - Individual issue display
-- **Custom Hooks**:
-    - `useKeyboardShortcuts.ts` - Keyboard navigation (14 tests)
-    - `useSettings.ts` - Settings persistence with safeStorage
-- **Constants**: Extracted status constants into `constants/status.ts` with helper functions
+#### Architecture Refactoring (attempted, then reverted -- see note)
+- **ViewModel Split (reverted)**: `useAppViewModel.ts` was decomposed into `useSettings.ts`,
+  `useProjects.ts`, `useIssues.ts`, `useSearch.ts`, `useFilteredIssues.ts`. A later PR
+  (lazy `versionViewData` computation) was built against the pre-split file, and merging
+  it silently replaced the composed-hooks version with a monolithic one again -- the split
+  hook files ended up orphaned (unimported, but still on disk with passing tests) until
+  discovered and cleaned up. **`useAppViewModel.ts` is monolithic today** (~1450 lines);
+  the split files no longer exist. See "Key Technical Details" #2 below.
+- **Component Split (reverted)**: `App.tsx` was similarly split into `TabbedIssueList.tsx`,
+  `IssueListContent.tsx`, `NoteEditor.tsx`, `RemoteSearchResults.tsx`, `IssueItem.tsx` --
+  same fate, same cause. **`App.tsx` defines these as local components today**, not
+  separate files.
+- **Still separate files** (survived, not touched by the revert): `ErrorBoundary.tsx`,
+  `Toast.tsx`, `useKeyboardShortcuts.ts`, `constants/status.ts`.
+- If you're an agent reading this: before assuming a hook/component lives in its own file
+  because an older PR or doc says so, grep for it. This codebase has silently reverted
+  a "split into focused files" refactor at least once.
 
 #### Performance Optimizations
-- **IndexedDB Cache**: Implemented Dexie.js-based caching for issues
+- **IndexedDB Cache**: Implemented Dexie.js-based caching for issues (`IssueCache.ts`)
     - Auto-migration from localStorage
     - Cache invalidation on updates
-    - 17 tests for cache operations
+    - Scoped per Redmine server (PR #19) -- switching `redmineURL` gets its own
+      database instead of sharing one cache across accounts
+    - 14 tests for cache operations
 - **Lazy versionViewData**: Replaced eager computation with on-demand loading
     - Computes only when tab/view changes
     - Caches results by key
@@ -82,7 +81,10 @@ This project is a cross-platform Redmine client designed to provide a smooth, be
 
 #### Offline Support
 - **OfflineQueue.ts**: IndexedDB-backed mutation queue with:
-    - Exponential backoff retry (1s → 2s → 4s → 8s, max 30s)
+    - Exponential backoff retry: `1000ms * 2^retryCount`, capped at 30s (so the
+      first retry after a failure waits 2s, then 4s, 8s, ...). `getRetryDelay()`
+      existed unused until PR #16 actually wired it into `useOffline.ts`'s retry
+      loop -- retries fired immediately with no pacing before that.
     - Max retry limit (5 attempts)
     - Automatic queue processing when online
     - 14 tests for queue operations
@@ -104,7 +106,9 @@ This project is a cross-platform Redmine client designed to provide a smooth, be
 - **ConflictDialog.tsx**: UI for conflict resolution
     - Shows local vs server values
     - Options: Use Local, Use Server, Auto-Merge
-    - 12 tests for dialog behavior
+    - Accessible modal (role/aria-modal/focus-trap/Escape -- added in PR #15,
+      was a bare `<div>` with no ARIA semantics before that)
+    - 5 tests for dialog behavior
 - **Integration**: Conflicts detected during queue processing
 
 #### Security Improvements
@@ -116,28 +120,44 @@ This project is a cross-platform Redmine client designed to provide a smooth, be
 
 #### Testing
 - **Vitest Setup**: Configured Vitest with jsdom
-- **Test Files**: 10 test suites, 108 tests total
-    - `status.test.ts` - 29 tests
-    - `useKeyboardShortcuts.test.ts` - 14 tests
-    - `useSettings.test.ts` - 6 tests
-    - `useFilteredIssues.test.ts` - 9 tests
-    - `useIssues.test.ts` - 9 tests
-    - `IssueCache.test.ts` - 17 tests
-    - `OfflineQueue.test.ts` - 14 tests
-    - `useOffline.test.ts` - 7 tests
-    - `ConflictResolver.test.ts` - 12 tests
-    - `ConflictDialog.test.tsx` - 12 tests
-    - `OfflineBanner.test.tsx` - 6 tests
-    - `ErrorBoundary.test.tsx` - 5 tests
+- **Test Files**: 11 test suites, 128 tests total (current as of PR #19; re-run
+  `npx vitest run --dir src/renderer` rather than trusting this count long-term)
+    - `constants/status.test.ts` - 29 tests
+    - `hooks/useKeyboardShortcuts.test.ts` - 14 tests
+    - `hooks/useAppViewModel.test.ts` - 13 tests (covers what used to be
+      `useSettings`/`useFilteredIssues`/`useIssues`-level behavior -- see the
+      architecture-revert note above, it's all one file/hook now)
+    - `services/IssueCache.test.ts` - 14 tests
+    - `services/OfflineQueue.test.ts` - 14 tests
+    - `hooks/useOffline.test.ts` - 9 tests
+    - `services/ConflictResolver.test.ts` - 12 tests
+    - `components/ConflictDialog.test.tsx` - 5 tests
+    - `components/OfflineBanner.test.tsx` - 6 tests
+    - `components/ErrorBoundary.test.tsx` - 5 tests
+    - `components/Toast.test.tsx` - 7 tests
+- There is no `App.tsx` test harness in this repo. UI-wiring changes there are
+  verified by `tsc --noEmit` + manual click-through, not automated tests.
 
 #### Pull Requests
-- PR #1: Architecture refactor (63 tests)
+- PR #1: Architecture refactor (63 tests) -- hook/component split, later reverted (see above)
 - PR #2: IndexedDB cache (17 tests)
-- PR #3: Lazy versionViewData (9 tests)
+- PR #3: Lazy versionViewData (9 tests) -- the commit that reverted PR #1's split
 - PR #4: Optimistic UI (6 tests)
-- PR #5: Offline support (27 tests)
-- PR #6: Conflict resolution (20 tests)
+- PR #5: Offline support (27 tests) -- superseded by PR #7
+- PR #6: Conflict resolution (20 tests) -- superseded by PR #7
 - PR #7: Audit fixes - type safety and code organization
+- PR #8: Fix assignee/version optimistic-update blank-name gap
+- PR #9: Fix "All Projects" view always showing zero issues
+- PR #10: Tray menu: top assigned issues (later replaced by #11)
+- PR #11: Collapse status groups by default on load; tray menu: status counts instead of a per-issue list
+- PR #12: Fix tray status-count click leaving an invisible, unclearable filter
+- PR #13: Fix tray icon urgency colors (were invisible due to `setTemplateImage`)
+- PR #14: Wire up `useKeyboardShortcuts` (was built, never connected to `App.tsx`)
+- PR #15: Add accessibility (role/aria-modal/focus-trap/Escape) to `ConflictDialog`
+- PR #16: Wire `OfflineQueue` exponential backoff into the retry loop
+- PR #17: Fix optimistic-update rollback/success clobbering a concurrent edit's field
+- PR #18: Remove unused `IssueCache` functions (8 with zero callers)
+- PR #19: Scope the IndexedDB issue cache per Redmine server
 
 ## Key Technical Details (For Agent Reference)
 
@@ -169,5 +189,12 @@ CSS Class Control: `.transparency-enabled` (effective only in Dark Mode).
 
 ## TODO / Future Optimizations
 - [ ] Add more custom filter conditions.
-- [ ] Optimize offline storage mechanism.
 - [ ] Explore Windows Acrylic/Mica effects (similar to macOS blur effects).
+- [ ] Keyboard j/k navigation (`useKeyboardShortcuts`, wired in PR #14) can select an
+      issue inside a collapsed status group -- collapse state lives in `App.tsx`'s
+      `IssueListContent` and isn't synced with keyboard nav, so the list may not
+      visibly scroll to it (the detail pane still updates correctly).
+- [ ] Consider getting an Apple Developer certificate for real macOS code signing.
+      The app is currently unsigned (`identity: null` in `package.json`'s build
+      config), so every fresh download triggers Gatekeeper's "app is damaged"
+      dialog; the workaround is `xattr -cr` on the downloaded `.app`.
