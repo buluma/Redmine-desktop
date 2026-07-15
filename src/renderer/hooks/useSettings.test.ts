@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act, waitFor } from '@testing-library/react'
 import { useSettings } from './useSettings'
 
 // Mock secureStore
@@ -99,5 +99,34 @@ describe('useSettings', () => {
 
         expect(result.current.showBadge).toBe(true)
         expect(localStorage.getItem('showBadge')).toBe('true')
+    })
+
+    it('migrates a legacy plaintext API key into secure storage and clears it from localStorage', async () => {
+        // Simulate a pre-existing install where the API key was saved in plaintext
+        // before secure storage existed.
+        localStorage.setItem('redmineAPIKey', 'legacy-plain-key')
+
+        renderHook(() => useSettings())
+
+        await waitFor(() => {
+            expect(mockSecureStore.store).toHaveBeenCalledWith('redmineAPIKey', 'legacy-plain-key')
+        })
+
+        expect(localStorage.getItem('redmineAPIKey')).toBeNull()
+        expect(localStorage.getItem('hasSecureKey')).toBe('true')
+    })
+
+    it('clears any leftover plaintext key once the secure key has loaded', async () => {
+        // A leftover plaintext key could remain if migration was interrupted in a
+        // previous session, even though secure storage is already the source of truth.
+        localStorage.setItem('hasSecureKey', 'true')
+        localStorage.setItem('redmineAPIKey', 'stale-plain-key')
+        mockSecureStore.retrieve.mockResolvedValueOnce('secure-key-value')
+
+        renderHook(() => useSettings())
+
+        await waitFor(() => {
+            expect(localStorage.getItem('redmineAPIKey')).toBeNull()
+        })
     })
 })
