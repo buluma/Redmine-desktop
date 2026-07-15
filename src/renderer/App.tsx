@@ -12,6 +12,7 @@ import { getAssignedWatchers } from './utils/assignedWatchers';
 import { useOffline } from './hooks/useOffline';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ConflictDialog } from './components/ConflictDialog';
+import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 
 const MemoIssueItem = React.memo(({
@@ -1084,6 +1085,73 @@ const App: React.FC = () => {
         setSelectedIssueState({ id, sourceKey });
     }, []);
 
+    // Global keyboard shortcuts (j/k nav, Enter, Escape, Cmd+F/R/N/,)
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const newTaskInputRef = useRef<HTMLInputElement>(null);
+
+    const getCurrentFlatIssueList = useCallback((): Issue[] => {
+        const data = vm.getVersionViewData(currentTabKey);
+        if (!data) return [];
+        return data.sortedKeys.flatMap((k: string) => data.groups[k]);
+    }, [vm.getVersionViewData, currentTabKey]);
+
+    const handleNextIssue = useCallback(() => {
+        const flat = getCurrentFlatIssueList();
+        if (flat.length === 0) return;
+        const idx = flat.findIndex(i => i.id === selectedIssueId);
+        const next = idx === -1 ? flat[0] : flat[Math.min(idx + 1, flat.length - 1)];
+        handleSelectIssue(next.id, currentTabKey);
+    }, [getCurrentFlatIssueList, selectedIssueId, handleSelectIssue, currentTabKey]);
+
+    const handlePrevIssue = useCallback(() => {
+        const flat = getCurrentFlatIssueList();
+        if (flat.length === 0) return;
+        const idx = flat.findIndex(i => i.id === selectedIssueId);
+        const prev = idx <= 0 ? flat[0] : flat[idx - 1];
+        handleSelectIssue(prev.id, currentTabKey);
+    }, [getCurrentFlatIssueList, selectedIssueId, handleSelectIssue, currentTabKey]);
+
+    const handleSelectCurrentIssue = useCallback(() => {
+        if (selectedIssueId !== null) return;
+        const flat = getCurrentFlatIssueList();
+        if (flat.length > 0) handleSelectIssue(flat[0].id, currentTabKey);
+    }, [selectedIssueId, getCurrentFlatIssueList, handleSelectIssue, currentTabKey]);
+
+    const handleEscape = useCallback(() => {
+        if (showSettings) {
+            setShowSettings(false);
+        } else if (selectedIssueId !== null) {
+            handleSelectIssue(null);
+        }
+    }, [showSettings, selectedIssueId, handleSelectIssue]);
+
+    const handleToggleSearch = useCallback(() => {
+        searchInputRef.current?.focus();
+    }, []);
+
+    const handleRefresh = useCallback(() => {
+        vm.refreshData();
+    }, [vm.refreshData]);
+
+    const handleNewTask = useCallback(() => {
+        newTaskInputRef.current?.focus();
+    }, []);
+
+    const handleToggleSettings = useCallback(() => {
+        setShowSettings(prev => !prev);
+    }, []);
+
+    useKeyboardShortcuts({
+        onNextIssue: handleNextIssue,
+        onPrevIssue: handlePrevIssue,
+        onSelectIssue: handleSelectCurrentIssue,
+        onEscape: handleEscape,
+        onToggleSearch: handleToggleSearch,
+        onRefresh: handleRefresh,
+        onNewTask: handleNewTask,
+        onToggleSettings: handleToggleSettings,
+    });
+
     // Stable references for MemoIssueItem props to prevent unnecessary re-renders
     const stableStatusList = useMemo(() => vm.issueStatuses, [vm.issueStatuses]);
     const stablePriorityList = useMemo(() => vm.issuePriorities, [vm.issuePriorities]);
@@ -2074,6 +2142,7 @@ const App: React.FC = () => {
                             )}
                         </span>
                         <input
+                            ref={searchInputRef}
                             type="text"
                             placeholder={vm.searchMode === 'remote' ? "Remote search..." : "Local search"}
                             value={vm.searchQuery}
@@ -2437,7 +2506,7 @@ const App: React.FC = () => {
                 <div className="add-task-bar pane-footer">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--input-bg)', borderRadius: 8, padding: '0 12px', flex: 1, height: 36 }}>
                         <span style={{ color: '#0c66ff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>+</span>
-                        <input type="text" placeholder="Quick add task..." value={newTaskSubject} onChange={e => setNewTaskSubject(e.target.value)} onKeyDown={e => {
+                        <input ref={newTaskInputRef} type="text" placeholder="Quick add task..." value={newTaskSubject} onChange={e => setNewTaskSubject(e.target.value)} onKeyDown={e => {
                             if (e.key === 'Enter' && newTaskSubject.trim() && vm.selectedProjectId !== -1) {
                                 vm.createIssue(newTaskSubject, vm.selectedProjectId!, quickAddVersionId || undefined, quickAddAssigneeId || undefined);
                                 setNewTaskSubject('');
