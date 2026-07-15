@@ -1,7 +1,7 @@
 {
   "name": "redmine-desktop",
   "productName": "Redmine Desktop",
-  "version": "2.1.5",
+  "version": "2.2.0",
   "author": "buluma",
   "license": "MIT",
   "description": "Cross-platform Redmine client",
