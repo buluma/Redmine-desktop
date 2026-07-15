@@ -3,6 +3,7 @@ import { RedmineService } from '../services/RedmineService'
 import { Issue, User, IssueStatus, IssuePriority } from '../models/redmine'
 import { getAssignedWatchers, getAssignedWatchersField, createAssignedWatchersUpdate } from '../utils/assignedWatchers'
 import { isVerified, isDevComplete, isComplete } from '../constants/status'
+import { showToast } from '../components/Toast'
 import * as IssueCache from '../services/IssueCache'
 
 export interface StatusCounts {
@@ -86,6 +87,8 @@ export function useIssues(): IssuesState & IssuesActions {
 
     const isRefreshingRef = useRef(false)
     const followedIssueIdsRef = useRef(followedIssueIds)
+    const issueStatusesRef = useRef(issueStatuses)
+    const issuePrioritiesRef = useRef(issuePriorities)
     // Tracks whether a network refresh has already populated allIssues, so the
     // (slower) IndexedDB cache-load effect below doesn't clobber fresher state
     // with a stale cached snapshot if it resolves afterwards.
@@ -94,6 +97,14 @@ export function useIssues(): IssuesState & IssuesActions {
     useEffect(() => {
         followedIssueIdsRef.current = followedIssueIds
     }, [followedIssueIds])
+
+    useEffect(() => {
+        issueStatusesRef.current = issueStatuses
+    }, [issueStatuses])
+
+    useEffect(() => {
+        issuePrioritiesRef.current = issuePriorities
+    }, [issuePriorities])
 
     // Load cache from IndexedDB on mount
     useEffect(() => {
@@ -353,15 +364,63 @@ export function useIssues(): IssuesState & IssuesActions {
     }, [])
 
     const updateIssue = useCallback(async (service: RedmineService, id: number, data: any) => {
-        setIsLoading(true)
+        // Optimistic update: immediately apply changes to local state
+        let previousIssue: Issue | undefined
+        setAllIssues(prev => {
+            const issue = prev.find(i => i.id === id)
+            if (!issue) return prev
+            previousIssue = issue
+            
+            // Create optimistic update with partial data
+            const optimistic: Issue = {
+                ...issue,
+                ...(data.status_id !== undefined && { status: issue.status }), // Keep status object for now
+                ...(data.priority_id !== undefined && { priority: issue.priority }),
+                ...(data.assigned_to_id !== undefined && { assigned_to: issue.assigned_to }),
+                ...(data.fixed_version_id !== undefined && { fixed_version: issue.fixed_version }),
+                updated_on: new Date().toISOString(), // Mark as recently updated
+            }
+            
+            // Apply specific field changes
+            if (data.status_id !== undefined) {
+                // Look up the real name so the change is visible immediately (IssueItem renders status.name),
+                // instead of only updating id and waiting on the follow-up fetchIssueDetail call.
+                const matchedStatus = issueStatusesRef.current.find(s => s.id === data.status_id)
+                optimistic.status = matchedStatus ? { ...issue.status, ...matchedStatus } : { ...issue.status, id: data.status_id }
+            }
+            if (data.priority_id !== undefined) {
+                const matchedPriority = issuePrioritiesRef.current.find(p => p.id === data.priority_id)
+                optimistic.priority = matchedPriority ? { ...issue.priority, ...matchedPriority } : { ...issue.priority, id: data.priority_id }
+            }
+            if (data.assigned_to_id !== undefined) {
+                optimistic.assigned_to = data.assigned_to_id 
+                    ? { id: parseInt(data.assigned_to_id), name: '' } 
+                    : undefined
+            }
+            if (data.fixed_version_id !== undefined) {
+                optimistic.fixed_version = data.fixed_version_id
+                    ? { id: parseInt(data.fixed_version_id), name: '' }
+                    : undefined
+            }
+            if (data.subject !== undefined) {
+                optimistic.subject = data.subject
+            }
+            
+            return prev.map(i => i.id === id ? optimistic : i)
+        })
+
         try {
+            // Make API call in background
             await service.updateIssue(id, data)
+            // Fetch fresh data from server to ensure consistency
             const updated = await service.fetchIssueDetail(id)
             setAllIssues(prev => prev.map(i => i.id === id ? updated : i))
         } catch (e: any) {
-            setErrorMessage(e.message)
-        } finally {
-            setIsLoading(false)
+            // Revert optimistic update on failure
+            if (previousIssue) {
+                setAllIssues(prev => prev.map(i => i.id === id ? previousIssue! : i))
+            }
+            showToast.error(`Update failed: ${e.message}`)
         }
     }, [])
 
