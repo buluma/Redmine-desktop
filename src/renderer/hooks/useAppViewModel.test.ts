@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { Issue, User } from '../models/redmine'
+import { showToast } from '../components/Toast'
 
 // Mock RedmineService so the hook never performs real network I/O.
 // Methods resolve to empty/harmless defaults by default; individual tests
@@ -459,6 +460,66 @@ describe('useAppViewModel - All Projects view (default state)', () => {
         expect(result.current.selectedProjectId).toBe(-1)
         const allIssueIds = Object.values(result.current.groupedIssues.groups).flat().map((i: any) => i.id)
         expect(allIssueIds.sort()).toEqual([1, 2])
+    })
+})
+
+describe('useAppViewModel - fetchVersionIssues 500-issue cap', () => {
+    beforeEach(() => {
+        localStorage.clear()
+        vi.clearAllMocks()
+
+        mocks.fetchCurrentUser.mockResolvedValue(mockUser)
+        mocks.fetchIssueStatuses.mockResolvedValue([])
+        mocks.fetchIssuePriorities.mockResolvedValue([])
+        mocks.fetchProjects.mockResolvedValue([])
+        mocks.fetchVersions.mockResolvedValue([])
+        mocks.fetchAssignableUsers.mockResolvedValue([])
+
+        localStorage.setItem('redmineURL', 'http://redmine.test')
+        localStorage.setItem('redmineAPIKey', 'test-key')
+        ;(IssueCache.getAllIssues as any).mockResolvedValue([])
+    })
+
+    it('warns the user when a version has more than 500 issues (only the first 500 load)', async () => {
+        const infoSpy = vi.spyOn(showToast, 'info')
+        const TOTAL = 600
+        mocks.fetchIssues.mockImplementation(async ({ offset }: { offset: number }) => ({
+            issues: Array.from({ length: 100 }, (_, i) => makeIssue({ id: offset + i + 1 })),
+            total_count: TOTAL,
+        }))
+
+        const { result } = renderHook(() => useAppViewModel())
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+        await act(async () => {
+            await result.current.fetchVersionIssues(10)
+        })
+
+        expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('500'))
+        infoSpy.mockRestore()
+    })
+
+    it('does not warn when a version has 500 or fewer issues', async () => {
+        const infoSpy = vi.spyOn(showToast, 'info')
+        const TOTAL = 150
+        mocks.fetchIssues.mockImplementation(async ({ offset }: { offset: number }) => {
+            const remaining = TOTAL - offset
+            const count = Math.min(100, remaining)
+            return {
+                issues: Array.from({ length: count }, (_, i) => makeIssue({ id: offset + i + 1 })),
+                total_count: TOTAL,
+            }
+        })
+
+        const { result } = renderHook(() => useAppViewModel())
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+        await act(async () => {
+            await result.current.fetchVersionIssues(10)
+        })
+
+        expect(infoSpy).not.toHaveBeenCalledWith(expect.stringContaining('500'))
+        infoSpy.mockRestore()
     })
 })
 
