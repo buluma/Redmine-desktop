@@ -1,5 +1,6 @@
 import Dexie, { Table } from 'dexie'
 import { Issue } from '../models/redmine'
+import { log } from '../utils/log'
 
 /**
  * IndexedDB-backed issue cache.
@@ -145,7 +146,7 @@ export async function migrateFromLocalStorage(): Promise<number> {
                 migratedCount = issues.length
                 // Only remove the key once its data has actually been persisted.
                 localStorage.removeItem('cachedIssues')
-                console.log(`[IssueCache] Migrated ${issues.length} issues from localStorage to IndexedDB`)
+                log.debug(`[IssueCache] Migrated ${issues.length} issues from localStorage to IndexedDB`)
             }
         }
     } catch (e) {

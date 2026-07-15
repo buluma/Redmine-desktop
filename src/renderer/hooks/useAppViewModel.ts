@@ -4,6 +4,7 @@ import { Project, Issue, Version, User, IssueStatus, IssuePriority } from '../mo
 import { getAssignedWatchers, getAssignedWatchersField, createAssignedWatchersUpdate } from '../utils/assignedWatchers';
 import { showToast } from '../components/Toast';
 import * as IssueCache from '../services/IssueCache';
+import { log } from '../utils/log';
 
 export function useAppViewModel() {
     const [redmineURL, setRedmineURL] = useState(localStorage.getItem('redmineURL') || '');
@@ -156,7 +157,7 @@ export function useAppViewModel() {
             try {
                 const migrated = await IssueCache.migrateFromLocalStorage();
                 if (migrated > 0) {
-                    console.log(`[useAppViewModel] Migrated ${migrated} issues from localStorage`);
+                    log.debug(`[useAppViewModel] Migrated ${migrated} issues from localStorage`);
                 }
 
                 const cachedIssues = await IssueCache.getAllIssues();
@@ -259,7 +260,7 @@ export function useAppViewModel() {
     const refreshIssues = useCallback(async () => {
         if (!service) return;
         if (isRefreshingRef.current) {
-            console.log('Refresh already in progress, skipping...');
+            log.debug('Refresh already in progress, skipping...');
             return;
         }
 
@@ -268,7 +269,7 @@ export function useAppViewModel() {
         try {
             // Fetch issues for all active versions only
             const activeVersionArray = Array.from(activeVersionIds);
-            console.log(`[refreshIssues] Refreshing ${activeVersionArray.length} active versions`);
+            log.debug(`[refreshIssues] Refreshing ${activeVersionArray.length} active versions`);
 
             let allFetchedIssues: Issue[] = [];
 
@@ -294,7 +295,7 @@ export function useAppViewModel() {
                 }
             }
 
-            console.log(`[refreshIssues] Fetched ${allFetchedIssues.length} issues from ${activeVersionArray.length} active versions`);
+            log.debug(`[refreshIssues] Fetched ${allFetchedIssues.length} issues from ${activeVersionArray.length} active versions`);
 
             if (activeVersionArray.length > 0) {
                 // Only mark network data as authoritative if we actually fetched something —
@@ -355,13 +356,13 @@ export function useAppViewModel() {
 
                 if (!hasChanges) {
                     // If no changes (no additions, no deletions, all update times match), don't create new object references to avoid unnecessary re-renders
-                    console.log('[refreshIssues] No changes detected in active versions.');
+                    log.debug('[refreshIssues] No changes detected in active versions.');
                     return prev;
                 }
 
                 const newIssuesList = [...preservedIssues, ...mergedActiveIssues, ...brandNewIssues];
 
-                console.log(`[refreshIssues] Total issues after update: ${newIssuesList.length} (was: ${prev.length})`);
+                log.debug(`[refreshIssues] Total issues after update: ${newIssuesList.length} (was: ${prev.length})`);
 
                 hasSetIssuesFromNetworkRef.current = true;
                 IssueCache.saveIssues(newIssuesList).catch(e =>
@@ -516,7 +517,7 @@ export function useAppViewModel() {
                 );
             }
 
-            console.log(`Fetched ${allFetchedIssues.length} issues for version ${versionId}`);
+            log.debug(`Fetched ${allFetchedIssues.length} issues for version ${versionId}`);
             // Merge with existing issues, avoiding duplicates and preserving details
             setAllIssues(prev => {
                 const issueMap = new Map(prev.map(i => [i.id, i]));
@@ -696,7 +697,7 @@ export function useAppViewModel() {
         if (!isConfigured || refreshInterval <= 0) return;
 
         const intervalId = setInterval(() => {
-            console.log('Background refreshing issues...');
+            log.debug('Background refreshing issues...');
             refreshIssues();
         }, refreshInterval * 1000);
 
@@ -751,7 +752,7 @@ export function useAppViewModel() {
                 else urgency = 'low'
             }
 
-            console.log('Badge update (reactive):', { count: myUnfinishedCount, urgency });
+            log.debug('Badge update (reactive):', { count: myUnfinishedCount, urgency });
             (window as any).ipcRenderer?.send('update-badge', { count: myUnfinishedCount, urgency });
         } else {
             (window as any).ipcRenderer?.send('update-badge', { count: 0, urgency: 'none' });
@@ -1142,10 +1143,10 @@ export function useAppViewModel() {
         });
 
         if (activating) {
-            console.log(`[toggleVersionActive] Version ${versionId} activated, fetching issues...`);
+            log.debug(`[toggleVersionActive] Version ${versionId} activated, fetching issues...`);
             await fetchVersionIssues(versionId);
         } else {
-            console.log(`[toggleVersionActive] Version ${versionId} moved to Others`);
+            log.debug(`[toggleVersionActive] Version ${versionId} moved to Others`);
         }
     }, [fetchVersionIssues]);
 
@@ -1389,7 +1390,7 @@ export function useAppViewModel() {
         if (!issue) {
             // Issue not found locally, fetch it from server
             try {
-                console.log(`[openIssueById] Issue ${issueId} not found locally, fetching from server...`);
+                log.debug(`[openIssueById] Issue ${issueId} not found locally, fetching from server...`);
                 issue = await service.fetchIssueDetail(issueId);
 
                 // Add to allIssues
@@ -1419,7 +1420,7 @@ export function useAppViewModel() {
         const projectId = issue.project.id;
         const versionId = issue.fixed_version?.id || null;
 
-        console.log(`[openIssueById] Opening issue ${issueId} in project ${projectId}, version ${versionId}`);
+        log.debug(`[openIssueById] Opening issue ${issueId} in project ${projectId}, version ${versionId}`);
 
         // Return the project/version/issue info for the App component to handle selection
         return { projectId, versionId, issueId };

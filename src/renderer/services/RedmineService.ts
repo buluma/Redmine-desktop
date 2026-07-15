@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { Project, Issue, Version, User, IssueStatus, IssuePriority } from '../models/redmine';
+import { log } from '../utils/log';
 
 export class RedmineService {
     private axios: AxiosInstance;
@@ -167,7 +168,7 @@ export class RedmineService {
             finalUrl = `${url}${connector}key=${this.axios.defaults.headers['X-Redmine-API-Key']}`;
         }
 
-        console.log(`Fetching image: ${finalUrl} (Base: ${configBaseURL})`);
+        log.debug(`Fetching image: ${finalUrl} (Base: ${configBaseURL})`);
 
         try {
             const response = await this.axios.get(finalUrl, {

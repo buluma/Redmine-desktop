@@ -13,6 +13,7 @@ import { useOffline } from './hooks/useOffline';
 import { OfflineBanner } from './components/OfflineBanner';
 import { ConflictDialog } from './components/ConflictDialog';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { log } from './utils/log';
 
 
 // Shared "invisible select overlaid on text" pattern used by the priority,
@@ -1325,7 +1326,7 @@ const App: React.FC = () => {
 
     useEffect(() => {
         const handler = async (_: any, issueId: number) => {
-            console.log('[App] Received open-issue-by-id:', issueId);
+            log.debug('[App] Received open-issue-by-id:', issueId);
             const { openIssueById, selectProject, selectVersion } = openIssueByIdDepsRef.current;
 
             try {
@@ -1348,7 +1349,7 @@ const App: React.FC = () => {
                     const targetKey = versionId ? versionId.toString() : (projectId === -2 ? '-2' : projectId === -3 ? '-3' : '');
                     setSelectedIssueState({ id: foundIssueId, sourceKey: targetKey });
 
-                    console.log(`[App] Successfully opened issue #${foundIssueId} in project ${projectId}, version ${versionId}`);
+                    log.debug(`[App] Successfully opened issue #${foundIssueId} in project ${projectId}, version ${versionId}`);
                 }
             } catch (error) {
                 console.error('[App] Failed to open issue by ID:', error);
