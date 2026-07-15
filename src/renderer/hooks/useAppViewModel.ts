@@ -10,7 +10,12 @@ export function useAppViewModel() {
     const [redmineURL, setRedmineURL] = useState(localStorage.getItem('redmineURL') || '');
     const [redmineAPIKey, setRedmineAPIKey] = useState(localStorage.getItem('redmineAPIKey') || '');
     const [refreshInterval, setRefreshInterval] = useState(parseInt(localStorage.getItem('refreshInterval') || '300', 10));
-    const [enableTransparency, setEnableTransparency] = useState(localStorage.getItem('enableTransparency') === 'true');
+    const [transparencyLevel, setTransparencyLevel] = useState(() => {
+        const stored = localStorage.getItem('transparencyLevel');
+        if (stored !== null) return Number(stored);
+        // Legacy on/off toggle: migrate "on" to a level roughly matching its old fixed alpha.
+        return localStorage.getItem('enableTransparency') === 'true' ? 35 : 0;
+    });
     const [appTheme, setAppTheme] = useState(localStorage.getItem('appTheme') || 'dark');
     const [showBadge, setShowBadge] = useState(localStorage.getItem('showBadge') === 'true');
 
@@ -685,7 +690,7 @@ export function useAppViewModel() {
             if (selectedAssigneeId !== null) localStorage.setItem('lastSelectedAssigneeId', selectedAssigneeId.toString());
             else localStorage.removeItem('lastSelectedAssigneeId');
         }
-        localStorage.setItem('enableTransparency', enableTransparency.toString());
+        localStorage.setItem('transparencyLevel', transparencyLevel.toString());
         localStorage.setItem('appTheme', appTheme);
         localStorage.setItem('refreshInterval', refreshInterval.toString());
         localStorage.setItem('showBadge', showBadge.toString());
@@ -696,7 +701,7 @@ export function useAppViewModel() {
         localStorage.setItem('groupByMode', groupByMode);
         localStorage.setItem('cachedActiveVersionIds', JSON.stringify(Array.from(activeVersionIds)));
         localStorage.setItem('cachedInitializedProjects', JSON.stringify(Array.from(initializedProjects)));
-    }, [selectedProjectId, selectedVersionId, selectedAssigneeId, selectedAssignedWatcherIds, enableTransparency, appTheme, refreshInterval, showBadge, isConfigured, pinnedVersionIds, hideVerifiedInFollowed, hideVerifiedInAssigned, groupByMode, activeVersionIds, initializedProjects]);
+    }, [selectedProjectId, selectedVersionId, selectedAssigneeId, selectedAssignedWatcherIds, transparencyLevel, appTheme, refreshInterval, showBadge, isConfigured, pinnedVersionIds, hideVerifiedInFollowed, hideVerifiedInAssigned, groupByMode, activeVersionIds, initializedProjects]);
 
     // Periodical Background Refresh
     useEffect(() => {
@@ -1479,7 +1484,7 @@ export function useAppViewModel() {
         redmineURL,
         redmineAPIKey,
         refreshInterval, setRefreshInterval,
-        enableTransparency, setEnableTransparency,
+        transparencyLevel, setTransparencyLevel,
         appTheme, setAppTheme,
         showBadge, setShowBadge,
         fetchImageBlob: (url: string) => service?.fetchImageBlob(url),

@@ -147,18 +147,21 @@ body {
   transform: translateZ(0);
 }
 
-/* Transparency System - only add blur when transparency is enabled */
+/* Transparency System - only add blur when transparency is enabled.
+   --transparency-level (0-1) is set inline on .app-container from the
+   Settings slider; alpha decreases as the level rises toward 1 (more
+   see-through), floored well above 0 so the pane never goes fully invisible. */
 .transparency-enabled .sidebar {
-  background: rgba(0, 0, 0, 0.4) !important;
+  background: rgba(0, 0, 0, calc(0.55 - 0.5 * var(--transparency-level, 0.35))) !important;
   /* Lighter for vibrancy */
 }
 
 .transparency-enabled .issue-list-pane {
-  background: rgba(15, 15, 15, 0.3) !important;
+  background: rgba(15, 15, 15, calc(0.4 - 0.36 * var(--transparency-level, 0.35))) !important;
 }
 
 .transparency-enabled .issue-detail-pane {
-  background: rgba(10, 10, 10, 0.3) !important;
+  background: rgba(10, 10, 10, calc(0.4 - 0.36 * var(--transparency-level, 0.35))) !important;
 }
 
 .light-theme.transparency-enabled .sidebar {
