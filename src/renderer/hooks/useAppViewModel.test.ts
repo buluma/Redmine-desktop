@@ -367,3 +367,38 @@ describe('useAppViewModel - IndexedDB issue cache', () => {
         expect(result.current.allIssues.map(i => i.id)).toEqual([2])
     })
 })
+
+describe('useAppViewModel - All Projects view (default state)', () => {
+    beforeEach(() => {
+        localStorage.clear()
+        vi.clearAllMocks()
+
+        mocks.fetchCurrentUser.mockResolvedValue(mockUser)
+        mocks.fetchIssueStatuses.mockResolvedValue([])
+        mocks.fetchIssuePriorities.mockResolvedValue([])
+        mocks.fetchProjects.mockResolvedValue([])
+        mocks.fetchVersions.mockResolvedValue([])
+        mocks.fetchAssignableUsers.mockResolvedValue([])
+        mocks.fetchIssues.mockResolvedValue({ issues: [], total_count: 0 })
+
+        localStorage.setItem('redmineURL', 'http://redmine.test')
+        localStorage.setItem('redmineAPIKey', 'test-key')
+        // No lastSelectedProjectId/lastSelectedVersionId set: this is a fresh
+        // install's default state, selectedProjectId defaults to -1 (All Projects).
+        ;(IssueCache.getAllIssues as any).mockResolvedValue([
+            makeIssue({ id: 1, project: { id: 10, name: 'Project A' } }),
+            makeIssue({ id: 2, project: { id: 20, name: 'Project B' } }),
+        ])
+    })
+
+    it('shows issues from every project, not an empty list, when no project/version is selected', async () => {
+        const { result } = renderHook(() => useAppViewModel())
+
+        await waitFor(() => expect(result.current.isLoading).toBe(false))
+        await waitFor(() => expect(result.current.allIssues.length).toBe(2))
+
+        expect(result.current.selectedProjectId).toBe(-1)
+        const allIssueIds = Object.values(result.current.groupedIssues.groups).flat().map((i: any) => i.id)
+        expect(allIssueIds.sort()).toEqual([1, 2])
+    })
+})
