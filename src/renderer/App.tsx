@@ -9,6 +9,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { marked } from 'marked';
 import { getAssignedWatchers } from './utils/assignedWatchers';
+import { useOffline } from './hooks/useOffline';
+import { OfflineBanner } from './components/OfflineBanner';
+import { ConflictDialog } from './components/ConflictDialog';
 
 
 const MemoIssueItem = React.memo(({
@@ -693,6 +696,28 @@ const RemoteSearchResults = React.memo(({
 
 const App: React.FC = () => {
     const vm = useAppViewModel();
+
+    // Fetch a fresh server-side Issue (not the local-state-updating vm.fetchIssueDetail)
+    // for the offline queue's pre-sync conflict check.
+    const fetchIssueDetailForConflictCheck = useCallback((id: number) => {
+        if (!vm.service) return Promise.reject(new Error('No service available'));
+        return vm.service.fetchIssueDetail(id);
+    }, [vm.service]);
+
+    const offline = useOffline(vm.service, fetchIssueDetailForConflictCheck);
+
+    const handleConflictResolve = useCallback((
+        resolution: 'local' | 'server' | 'merge',
+        mergedData?: Record<string, unknown>
+    ) => {
+        if (offline.currentConflict) {
+            offline.resolveConflict({
+                mutationId: offline.currentConflict.mutationId,
+                resolution,
+                mergedData,
+            });
+        }
+    }, [offline.currentConflict, offline.resolveConflict]);
 
     // Derived current tab key
     const currentTabKey = useMemo(() =>
@@ -1586,6 +1611,19 @@ const App: React.FC = () => {
         <div className={`app-container ${isLightTheme ? 'light-theme' : ''} ${vm.enableTransparency && !isLightTheme ? 'transparency-enabled' : ''}`} style={{ background: vm.enableTransparency && !isLightTheme ? 'rgba(0,0,0,0.02)' : 'var(--bg-color)' }}>
             {/* Title bar drag region for window dragging */}
             <div className="title-bar-drag-region" />
+
+            <OfflineBanner
+                isOnline={offline.isOnline}
+                isProcessingQueue={offline.isProcessingQueue}
+                pendingCount={offline.pendingCount}
+            />
+            {offline.currentConflict && (
+                <ConflictDialog
+                    conflict={offline.currentConflict}
+                    onResolve={handleConflictResolve}
+                    onDismiss={offline.skipConflict}
+                />
+            )}
 
             {showSettings && <SettingsModal />}
             <UpdaterModal isOpen={showUpdaterModal} onClose={() => setShowUpdaterModal(false)} isDark={!isLightTheme} />
