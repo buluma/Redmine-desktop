@@ -1475,6 +1475,18 @@ const App: React.FC = () => {
         return selectedIssueCacheRef.current;
     }, [vm.allIssues, vm.remoteSearchResults, vm.searchMode, selectedIssueId]);
 
+    // Project members are normally only fetched for the sidebar-selected project.
+    // Opening an issue from a project that isn't sidebar-selected (search results,
+    // tray click, direct link) leaves its member list empty, which makes the
+    // assignee/version <select>s silently fall back to their first option --
+    // "Unassigned" -- even though the issue really is assigned. Backfill on demand.
+    useEffect(() => {
+        const projectId = selectedIssue?.project?.id;
+        if (projectId && !vm.projectMembersMap[projectId]) {
+            vm.fetchProjectDetails(projectId);
+        }
+    }, [selectedIssue?.project?.id, vm.projectMembersMap, vm.fetchProjectDetails]);
+
     const processedDescription = useMemo(() => {
         if (!selectedIssue) return '';
         let text = selectedIssue.description || '';

@@ -1448,6 +1448,7 @@ export function useAppViewModel() {
         issuePriorities,
         projectVersionsMap,
         projectMembersMap,
+        fetchProjectDetails,
         selectedProjectId,
         selectProject,
         selectedVersionId,
