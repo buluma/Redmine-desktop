@@ -1,4 +1,5 @@
 import Dexie from 'dexie'
+import { log } from '../utils/log'
 
 // Typed mutation bodies
 export interface UpdateIssueBody {
@@ -69,7 +70,7 @@ export async function enqueueMutation(mutation: Omit<QueuedMutation, 'id' | 'ret
         ...mutation,
         retryCount: 0,
     })
-    console.log(`[OfflineQueue] Enqueued mutation: ${mutation.type} for issue ${mutation.issueId}`)
+    log.debug(`[OfflineQueue] Enqueued mutation: ${mutation.type} for issue ${mutation.issueId}`)
     return id as number
 }
 
@@ -92,7 +93,7 @@ export async function getPendingCount(): Promise<number> {
  */
 export async function removeMutation(id: number): Promise<void> {
     await db.mutations.delete(id)
-    console.log(`[OfflineQueue] Removed mutation ${id}`)
+    log.debug(`[OfflineQueue] Removed mutation ${id}`)
 }
 
 /**
@@ -113,7 +114,7 @@ export async function updateMutationError(id: number, error: string): Promise<vo
  */
 export async function clearQueue(): Promise<void> {
     await db.mutations.clear()
-    console.log('[OfflineQueue] Queue cleared')
+    log.debug('[OfflineQueue] Queue cleared')
 }
 
 /**
@@ -146,7 +147,7 @@ export async function processQueue(
             await executor(mutation)
             await removeMutation(mutation.id!)
             succeeded++
-            console.log(`[OfflineQueue] Succeeded: ${mutation.type} for issue ${mutation.issueId}`)
+            log.debug(`[OfflineQueue] Succeeded: ${mutation.type} for issue ${mutation.issueId}`)
         } catch (error: any) {
             if (shouldRetry(mutation)) {
                 await updateMutationError(mutation.id!, error.message)
@@ -174,7 +175,7 @@ export async function clearStaleMutations(): Promise<number> {
         await db.mutations.delete(mutation.id!)
     }
     if (stale.length > 0) {
-        console.log(`[OfflineQueue] Cleared ${stale.length} stale mutations`)
+        log.debug(`[OfflineQueue] Cleared ${stale.length} stale mutations`)
     }
     return stale.length
 }
