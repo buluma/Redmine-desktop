@@ -57,8 +57,15 @@ export interface UpdaterAPI {
     onUpdateAvailableSilent: (callback: (info: { version: string; releaseDate?: string }) => void) => () => void;
 }
 
+export interface SecureStoreAPI {
+    store: (key: string, value: string) => Promise<boolean>;
+    retrieve: (key: string) => Promise<string | null>;
+    remove: (key: string) => Promise<boolean>;
+}
+
 declare global {
     interface Window {
         updater: UpdaterAPI;
+        secureStore: SecureStoreAPI;
     }
 }
