@@ -14,6 +14,7 @@ import { OfflineBanner } from './components/OfflineBanner';
 import { ConflictDialog } from './components/ConflictDialog';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { log } from './utils/log';
+import { showToast } from './components/Toast';
 
 
 // Shared "invisible select overlaid on text" pattern used by the priority,
@@ -23,11 +24,13 @@ const InlineFieldSelect: React.FC<{
     displayValue: string
     value: string | number
     onChange: (value: string) => void
+    ariaLabel: string
     children: React.ReactNode
-}> = ({ displayValue, value, onChange, children }) => (
-    <span style={{ color: 'var(--text-secondary)', fontSize: 10, position: 'relative' }}>
+}> = ({ displayValue, value, onChange, ariaLabel, children }) => (
+    <span className="inline-field-select" style={{ color: 'var(--text-secondary)', fontSize: 10, position: 'relative' }}>
         {displayValue}
         <select
+            aria-label={ariaLabel}
             value={value}
             onClick={e => e.stopPropagation()}
             onChange={e => onChange(e.target.value)}
@@ -98,7 +101,7 @@ const MemoIssueItem = React.memo(({
                     <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                         <span style={{ background: 'rgba(255,69,58,0.15)', borderRadius: 8, padding: '1px 6px', fontSize: 10, color: '#ff453a', position: 'relative', fontWeight: 500, border: '1px solid rgba(255,69,58,0.3)' }}>
                             {issue.status.name}
-                            <select value={issue.status.id} onClick={e => e.stopPropagation()} onChange={e => onUpdateStatus(issue.id, parseInt(e.target.value))} style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}>
+                            <select aria-label="Change status" value={issue.status.id} onClick={e => e.stopPropagation()} onChange={e => onUpdateStatus(issue.id, parseInt(e.target.value))} style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}>
                                 {statusList.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                             <span style={{ marginLeft: 3, fontSize: 10 }}>⌄</span>
@@ -107,6 +110,7 @@ const MemoIssueItem = React.memo(({
                         <InlineFieldSelect
                             displayValue={issue.priority.name}
                             value={issue.priority.id}
+                            ariaLabel="Change priority"
                             onChange={v => onUpdatePriority(issue.id, parseInt(v))}
                         >
                             {priorityList.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -117,6 +121,7 @@ const MemoIssueItem = React.memo(({
                         <InlineFieldSelect
                             displayValue={issue.fixed_version?.name || '-'}
                             value={issue.fixed_version?.id || ''}
+                            ariaLabel="Change version"
                             onChange={v => onUpdateVersion(issue.id, v)}
                         >
                             <option value="">-</option>
@@ -126,6 +131,7 @@ const MemoIssueItem = React.memo(({
                         <InlineFieldSelect
                             displayValue={issue.assigned_to?.name || '-'}
                             value={issue.assigned_to?.id || ''}
+                            ariaLabel="Change assignee"
                             onChange={v => onUpdateAssignee(issue.id, v)}
                         >
                             <option value="">-</option>
@@ -166,7 +172,7 @@ const MemoIssueItem = React.memo(({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    color: isFollowed ? '#0c66ff' : 'var(--text-secondary)',
+                    color: isFollowed ? 'var(--accent-color)' : 'var(--text-secondary)',
                     opacity: isFollowed ? 1 : 0.3,
                     transition: 'all 0.2s',
                     padding: '4px',
@@ -184,12 +190,7 @@ const MemoIssueItem = React.memo(({
         </div>
     );
 }, (prevProps, nextProps) => {
-    // Custom comparison: only re-render if these specific props changed
-    // We add a ref check or callback to notify parent about position? 
-    // Actually, for indicator, we need the DOM element. 
-    // But since we can't easily pass ref through memo without forwardRef, 
-    // and we have many items, maybe we just use a data attribute and let parent find it?
-    // Using `data-issue-id` is good.
+    // Custom comparison: only re-render if these specific props changed.
     return (
         prevProps.isSelected === nextProps.isSelected &&
         prevProps.issue.id === nextProps.issue.id &&
@@ -256,7 +257,8 @@ const NoteEditor: React.FC<{ issueId: number, onAddNote: (id: number, text: stri
                 />
                 <button
                     onClick={handleSend}
-                    style={{ position: 'absolute', right: 8, bottom: 4, background: '#0c66ff', border: 'none', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer', transition: 'all 0.12s' }}
+                    title="Send"
+                    style={{ position: 'absolute', right: 8, bottom: 4, background: 'var(--accent-color)', border: 'none', width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', cursor: 'pointer', transition: 'all 0.12s' }}
                     onMouseDown={e => { (e.currentTarget as any).style.transform = 'scale(0.95)' }}
                     onMouseUp={e => { (e.currentTarget as any).style.transform = 'scale(1)' }}
                 >
@@ -491,7 +493,16 @@ const IssueListContent = React.memo(({
     if (sortedKeys.length === 0 && !vm.isLoading) {
         return (
             <div style={{ textAlign: 'center', marginTop: 50, color: 'var(--text-secondary)', fontSize: 13 }}>
+                <div style={{ marginBottom: 10 }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                        <path d="M20 7h-3a2 2 0 0 1-2-2V2"></path>
+                        <path d="M9 22H5a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9l5 5v13a2 2 0 0 1-2 2h-3"></path>
+                        <path d="M12 17v-6"></path>
+                        <path d="M9 14h6"></path>
+                    </svg>
+                </div>
                 No issues found in this section.<br />
+                <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Try a different filter, or refresh to pull the latest</span><br />
                 <button onClick={() => vm.refreshData()} style={{ marginTop: 10, background: 'none', border: '1px solid var(--border-color)', color: 'var(--text-primary)', padding: '5px 15px', borderRadius: 4, cursor: 'pointer' }}>Force Refresh</button>
             </div>
         );
@@ -523,13 +534,17 @@ const IssueListContent = React.memo(({
                             }}
                         >
                             <span style={{
-                                fontSize: 10,
                                 width: 12,
-                                display: 'inline-block',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
                                 transform: isCollapsed ? 'rotate(-90deg)' : 'none',
-                                transition: 'transform 0.2s',
-                                textAlign: 'center'
-                            }}>▼</span>
+                                transition: 'transform 0.2s'
+                            }}>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                            </span>
                             <span style={{ flex: 1 }}>{key}</span>
                             <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 'normal' }}>{issuesInGroup.length}</span>
                         </div>
@@ -651,7 +666,11 @@ const RemoteSearchResults = React.memo(({
     if (results.length === 0) {
         return (
             <div style={{ textAlign: 'center', marginTop: 80, color: 'var(--text-secondary)', fontSize: 13 }}>
-                <div style={{ marginBottom: 10 }}>🔍</div>
+                <div style={{ marginBottom: 10 }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.4 }}>
+                        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
+                    </svg>
+                </div>
                 No issues found matching "{searchQuery}"<br />
                 <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>Try different keywords</span>
             </div>
@@ -1039,6 +1058,58 @@ const App: React.FC = () => {
     const [deleteVersionConfirm, setDeleteVersionConfirm] = useState<{ projectId: number; versionId: number; name: string } | null>(null);
     const [deleteIssueConfirm, setDeleteIssueConfirm] = useState<number | null>(null);
 
+    // Focus-trap + Escape-to-close for the delete confirmation dialogs, matching ConflictDialog's pattern.
+    const deleteVersionDialogRef = useRef<HTMLDivElement>(null);
+    const deleteIssueDialogRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (deleteVersionConfirm) deleteVersionDialogRef.current?.focus();
+    }, [deleteVersionConfirm]);
+
+    useEffect(() => {
+        if (deleteIssueConfirm !== null) deleteIssueDialogRef.current?.focus();
+    }, [deleteIssueConfirm]);
+
+    const handleDeleteVersionDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            setDeleteVersionConfirm(null);
+            return;
+        }
+        if (e.key !== 'Tab' || !deleteVersionDialogRef.current) return;
+        const focusable = deleteVersionDialogRef.current.querySelectorAll<HTMLElement>('button, input, [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    };
+
+    const handleDeleteIssueDialogKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            setDeleteIssueConfirm(null);
+            return;
+        }
+        if (e.key !== 'Tab' || !deleteIssueDialogRef.current) return;
+        const focusable = deleteIssueDialogRef.current.querySelectorAll<HTMLElement>('button, input, [tabindex]:not([tabindex="-1"])');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    };
+
     // Inline editing state
     const [editingTitle, setEditingTitle] = useState(false);
     const [editingDescription, setEditingDescription] = useState(false);
@@ -1097,7 +1168,7 @@ const App: React.FC = () => {
             });
         } catch (e: any) {
             console.error('Download failed', e);
-            alert('Download failed: ' + e.message);
+            showToast.error('Download failed: ' + e.message);
         }
     };
 
@@ -1602,14 +1673,14 @@ const App: React.FC = () => {
                                         <div style={{ margin: '5px 0', padding: '8px 12px', background: '#111', borderRadius: 8, display: 'inline-flex', alignItems: 'center', gap: 10, border: '1px solid #222' }}>
                                             <span style={{ fontSize: 16 }}>📎</span>
                                             <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                <a href="#" onClick={(e) => { e.preventDefault(); downloadFile(attachment.content_url, filename); }} style={{ color: '#0c66ff', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>{filename}</a>
+                                                <a href="#" onClick={(e) => { e.preventDefault(); downloadFile(attachment.content_url, filename); }} style={{ color: 'var(--accent-color)', textDecoration: 'none', fontSize: 13, fontWeight: 500 }}>{filename}</a>
                                                 <span style={{ fontSize: 10, color: '#444' }}>{(attachment.filesize / 1024).toFixed(1)} KB</span>
                                             </div>
                                         </div>
                                     );
                                 }
                             }
-                            return <a href={url} onClick={(e) => { e.preventDefault(); (window as any).ipcRenderer.send('open-external', url); }} style={{ color: '#0c66ff', textDecoration: 'none' }}>{children}</a>;
+                            return <a href={url} onClick={(e) => { e.preventDefault(); (window as any).ipcRenderer.send('open-external', url); }} style={{ color: 'var(--accent-color)', textDecoration: 'none' }}>{children}</a>;
                         }
                     }}
                 >
@@ -1657,14 +1728,14 @@ const App: React.FC = () => {
                                 <option value="600">10 Minutes</option>
                             </select>
                             <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Transparency</span>
-                            <input type="checkbox" checked={vm.enableTransparency} onChange={e => vm.setEnableTransparency(e.target.checked)} style={{ width: 20, height: 20 }} />
+                            <input type="checkbox" checked={vm.enableTransparency} onChange={e => vm.setEnableTransparency(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--accent-color)', cursor: 'pointer' }} />
                             <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Theme</span>
                             <select value={vm.appTheme} onChange={e => vm.setAppTheme(e.target.value)} style={{ padding: '8px', background: 'var(--input-bg)', border: '1px solid var(--input-border)', color: 'var(--text-primary)', borderRadius: 6 }}>
                                 <option value="dark">Dark</option>
                                 <option value="light">Light</option>
                             </select>
                             <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Show Badge</span>
-                            <input type="checkbox" checked={vm.showBadge} onChange={e => vm.setShowBadge(e.target.checked)} style={{ width: 20, height: 20 }} />
+                            <input type="checkbox" checked={vm.showBadge} onChange={e => vm.setShowBadge(e.target.checked)} style={{ width: 20, height: 20, accentColor: 'var(--accent-color)', cursor: 'pointer' }} />
                         </div>
                     </div>
                     <div style={{ marginBottom: 20 }}>
@@ -1679,7 +1750,7 @@ const App: React.FC = () => {
                                     setAutoUpdateEnabled(newValue);
                                     await window.updater?.setAutoUpdateSettings({ enabled: newValue });
                                 }}
-                                style={{ width: 20, height: 20 }}
+                                style={{ width: 20, height: 20, accentColor: 'var(--accent-color)', cursor: 'pointer' }}
                             />
                             <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Check Frequency</span>
                             <select
@@ -1703,9 +1774,13 @@ const App: React.FC = () => {
                             <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>Check Manually</span>
                             <button
                                 onClick={() => { setShowSettings(false); setShowUpdaterModal(true); }}
-                                style={{ padding: '8px 16px', background: 'var(--button-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}
+                                style={{ padding: '8px 16px', background: 'var(--button-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: 6, cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
                             >
-                                🚀 Check for Updates
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 12a9 9 0 1 1-3-6.7"></path>
+                                    <polyline points="21 3 21 9 15 9"></polyline>
+                                </svg>
+                                Check for Updates
                             </button>
                         </div>
                     </div>
@@ -1716,7 +1791,7 @@ const App: React.FC = () => {
                                 await vm.saveSettings(draftURL, draftKey);
                                 if (!forceShow) setShowSettings(false);
                             }}
-                            style={{ flex: 1, padding: '12px', background: '#0c66ff', color: 'white', border: 'none', borderRadius: 8, fontWeight: 500, cursor: vm.isLoading ? 'not-allowed' : 'pointer', opacity: vm.isLoading ? 0.7 : 1 }}
+                            style={{ flex: 1, padding: '12px', background: 'var(--accent-color)', color: 'white', border: 'none', borderRadius: 8, fontWeight: 500, cursor: vm.isLoading ? 'not-allowed' : 'pointer', opacity: vm.isLoading ? 0.7 : 1 }}
                         >
                             {vm.isLoading ? 'Connecting...' : 'Save & Connect'}
                         </button>
@@ -1764,7 +1839,7 @@ const App: React.FC = () => {
             {/* New Version Dialog */}
             {newVersionProjectId !== null && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-                    <div style={{ background: '#1a1a1a', padding: 20, borderRadius: 12, width: 300 }}>
+                    <div style={{ background: 'var(--modal-bg)', padding: 20, borderRadius: 12, width: 300 }}>
                         <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>New Version</div>
                         <input
                             type="text"
@@ -1792,11 +1867,11 @@ const App: React.FC = () => {
                                         setNewVersionName('');
                                     }
                                 }}
-                                style={{ flex: 1, padding: 10, background: '#0c66ff', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                                style={{ flex: 1, padding: 10, background: 'var(--accent-color)', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
                             >Create</button>
                             <button
                                 onClick={() => setNewVersionProjectId(null)}
-                                style={{ padding: '10px 20px', background: '#333', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                                style={{ padding: '10px 20px', background: 'var(--button-secondary)', color: 'var(--text-primary)', border: 'none', borderRadius: 6, cursor: 'pointer' }}
                             >Cancel</button>
                         </div>
                     </div>
@@ -1806,9 +1881,17 @@ const App: React.FC = () => {
             {/* Delete Version Confirmation */}
             {deleteVersionConfirm && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-                    <div style={{ background: '#1a1a1a', padding: 20, borderRadius: 12, width: 300 }}>
-                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>Delete Version</div>
-                        <div style={{ fontSize: 12, color: '#888', marginBottom: 15 }}>Are you sure you want to delete version "{deleteVersionConfirm.name}"? This action cannot be undone.</div>
+                    <div
+                        ref={deleteVersionDialogRef}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-version-dialog-title"
+                        tabIndex={-1}
+                        onKeyDown={handleDeleteVersionDialogKeyDown}
+                        style={{ background: 'var(--modal-bg)', padding: 20, borderRadius: 12, width: 300 }}
+                    >
+                        <div id="delete-version-dialog-title" style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>Delete Version</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 15 }}>Are you sure you want to delete version "{deleteVersionConfirm.name}"? This action cannot be undone.</div>
                         <div style={{ display: 'flex', gap: 10 }}>
                             <button
                                 onClick={async () => {
@@ -1819,7 +1902,7 @@ const App: React.FC = () => {
                             >Delete</button>
                             <button
                                 onClick={() => setDeleteVersionConfirm(null)}
-                                style={{ padding: '10px 20px', background: '#333', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                                style={{ padding: '10px 20px', background: 'var(--button-secondary)', color: 'var(--text-primary)', border: 'none', borderRadius: 6, cursor: 'pointer' }}
                             >Cancel</button>
                         </div>
                     </div>
@@ -1829,9 +1912,17 @@ const App: React.FC = () => {
             {/* Delete Issue Confirmation */}
             {deleteIssueConfirm && (
                 <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
-                    <div style={{ background: '#1a1a1a', padding: 20, borderRadius: 12, width: 300 }}>
-                        <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>Delete Issue</div>
-                        <div style={{ fontSize: 12, color: '#888', marginBottom: 15 }}>Are you sure you want to delete issue #{deleteIssueConfirm}? This action cannot be undone.</div>
+                    <div
+                        ref={deleteIssueDialogRef}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="delete-issue-dialog-title"
+                        tabIndex={-1}
+                        onKeyDown={handleDeleteIssueDialogKeyDown}
+                        style={{ background: 'var(--modal-bg)', padding: 20, borderRadius: 12, width: 300 }}
+                    >
+                        <div id="delete-issue-dialog-title" style={{ fontSize: 14, fontWeight: 500, marginBottom: 15 }}>Delete Issue</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 15 }}>Are you sure you want to delete issue #{deleteIssueConfirm}? This action cannot be undone.</div>
                         <div style={{ display: 'flex', gap: 10 }}>
                             <button
                                 onClick={async () => {
@@ -1845,7 +1936,7 @@ const App: React.FC = () => {
                             >Delete</button>
                             <button
                                 onClick={() => setDeleteIssueConfirm(null)}
-                                style={{ padding: '10px 20px', background: '#333', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer' }}
+                                style={{ padding: '10px 20px', background: 'var(--button-secondary)', color: 'var(--text-primary)', border: 'none', borderRadius: 6, cursor: 'pointer' }}
                             >Cancel</button>
                         </div>
                     </div>
@@ -2001,7 +2092,7 @@ const App: React.FC = () => {
                                                                         setEditingVersionId(null);
                                                                     }
                                                                 }}
-                                                                style={{ background: '#333', border: '1px solid #0c66ff', color: 'white', fontSize: 11, padding: '2px 5px', borderRadius: 4, width: '100%', outline: 'none' }}
+                                                                style={{ background: '#333', border: '1px solid var(--accent-color)', color: 'white', fontSize: 11, padding: '2px 5px', borderRadius: 4, width: '100%', outline: 'none' }}
                                                             />
                                                         ) : (
                                                             <span onDoubleClick={() => { setEditingVersionId(v.id); setEditVersionName(v.name); }} style={{ flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.name}</span>
@@ -2143,9 +2234,9 @@ const App: React.FC = () => {
             <div
                 className="no-drag"
                 onMouseDown={() => setResizingPane('sidebar')}
-                style={{ width: 4, cursor: 'col-resize', background: resizingPane === 'sidebar' ? '#0c66ff' : 'transparent', flexShrink: 0, margin: '0 -2px', zIndex: 100, transition: 'background 0.2s' }}
-                onMouseEnter={e => (e.target as HTMLDivElement).style.background = '#0c66ff'}
-                onMouseLeave={e => (e.target as HTMLDivElement).style.background = resizingPane === 'sidebar' ? '#0c66ff' : 'transparent'}
+                style={{ width: 4, cursor: 'col-resize', background: resizingPane === 'sidebar' ? 'var(--accent-color)' : 'transparent', flexShrink: 0, margin: '0 -2px', zIndex: 100, transition: 'background 0.2s' }}
+                onMouseEnter={e => (e.target as HTMLDivElement).style.background = 'var(--accent-color)'}
+                onMouseLeave={e => (e.target as HTMLDivElement).style.background = resizingPane === 'sidebar' ? 'var(--accent-color)' : 'transparent'}
             />
 
             {/* List */}
@@ -2280,7 +2371,14 @@ const App: React.FC = () => {
                                             : '☁️ Remote search mode (enter keywords to search)'
                                 ) : (
                                     vm.isLoading
-                                        ? '⏳ Loading...'
+                                        ? (
+                                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: 'spin 1s linear infinite' }}>
+                                                    <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12"></circle>
+                                                </svg>
+                                                Loading...
+                                            </span>
+                                        )
                                         : `✅ API loaded: ${vm.allIssues.length} | Showing: ${vm.groupedIssues.sortedKeys.reduce((acc, k) => acc + vm.groupedIssues.groups[k].length, 0)}${vm.isBackgroundRefreshing ? ' | 🔄 Background refreshing...' : ''}`
                                 )}
                             </span>
@@ -2529,7 +2627,7 @@ const App: React.FC = () => {
 
                 <div className="add-task-bar pane-footer">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--input-bg)', borderRadius: 8, padding: '0 12px', flex: 1, height: 36 }}>
-                        <span style={{ color: '#0c66ff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>+</span>
+                        <span style={{ color: 'var(--accent-color)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>+</span>
                         <input ref={newTaskInputRef} type="text" placeholder="Quick add task..." value={newTaskSubject} onChange={e => setNewTaskSubject(e.target.value)} onKeyDown={e => {
                             if (e.key === 'Enter' && newTaskSubject.trim() && vm.selectedProjectId !== -1) {
                                 vm.createIssue(newTaskSubject, vm.selectedProjectId!, quickAddVersionId || undefined, quickAddAssigneeId || undefined);
@@ -2538,7 +2636,7 @@ const App: React.FC = () => {
                         }} style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--text-primary)', padding: '4px 0', fontSize: 13, outline: 'none' }} />
                         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                             {vm.selectedProjectId !== -1 && vm.selectedProjectId !== null && (
-                                <span style={{ fontSize: 11, color: '#888', position: 'relative' }}>
+                                <span style={{ fontSize: 11, color: 'var(--text-secondary)', position: 'relative' }}>
                                     {(vm.projectVersionsMap[vm.selectedProjectId] || []).find((v: { id: number }) => v.id === quickAddVersionId)?.name || 'No version'}
                                     <select
                                         value={quickAddVersionId || ''}
@@ -2553,7 +2651,7 @@ const App: React.FC = () => {
                                     <span style={{ marginLeft: 3, fontSize: 10, color: '#666' }}>⌄</span>
                                 </span>
                             )}
-                            <span style={{ fontSize: 11, color: '#888', position: 'relative' }}>
+                            <span style={{ fontSize: 11, color: 'var(--text-secondary)', position: 'relative' }}>
                                 {quickAddAssigneeId === null
                                     ? '👤 Unassigned'
                                     : currentProjectMembers.find(m => m.id === quickAddAssigneeId)?.name || '👤 Unassigned'}
@@ -2578,9 +2676,9 @@ const App: React.FC = () => {
             <div
                 className="no-drag"
                 onMouseDown={() => setResizingPane('list')}
-                style={{ width: 4, cursor: 'col-resize', background: resizingPane === 'list' ? '#0c66ff' : 'transparent', flexShrink: 0, margin: '0 -2px', zIndex: 100, transition: 'background 0.2s' }}
-                onMouseEnter={e => (e.target as HTMLDivElement).style.background = '#0c66ff'}
-                onMouseLeave={e => (e.target as HTMLDivElement).style.background = resizingPane === 'list' ? '#0c66ff' : 'transparent'}
+                style={{ width: 4, cursor: 'col-resize', background: resizingPane === 'list' ? 'var(--accent-color)' : 'transparent', flexShrink: 0, margin: '0 -2px', zIndex: 100, transition: 'background 0.2s' }}
+                onMouseEnter={e => (e.target as HTMLDivElement).style.background = 'var(--accent-color)'}
+                onMouseLeave={e => (e.target as HTMLDivElement).style.background = resizingPane === 'list' ? 'var(--accent-color)' : 'transparent'}
             />
 
             {/* Detail */}
@@ -2598,7 +2696,7 @@ const App: React.FC = () => {
                                             e.preventDefault();
                                             window.open(`${vm.redmineURL.replace(/\/$/, '')}/issues/${selectedIssue.id}`, '_blank');
                                         }}
-                                        style={{ color: '#0c66ff', fontSize: 13, textDecoration: 'none', cursor: 'pointer' }}
+                                        style={{ color: 'var(--accent-color)', fontSize: 13, textDecoration: 'none', cursor: 'pointer' }}
                                         title="Open in browser"
                                     >
                                         #{selectedIssue.id}
@@ -2686,7 +2784,7 @@ const App: React.FC = () => {
                                             width: '100%',
                                             background: 'transparent',
                                             border: 'none',
-                                            borderBottom: '2px solid #0c66ff',
+                                            borderBottom: '2px solid var(--accent-color)',
                                             color: 'var(--text-primary)',
                                             outline: 'none',
                                             padding: 0,
@@ -2836,7 +2934,7 @@ const App: React.FC = () => {
                                     {!editingDescription && (
                                         <button
                                             onClick={() => { setEditDescriptionValue(selectedIssue.description || ''); setEditingDescription(true); }}
-                                            style={{ background: 'none', border: 'none', color: '#0c66ff', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                            style={{ background: 'none', border: 'none', color: 'var(--accent-color)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                                         >
                                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                                         </button>
@@ -2972,7 +3070,7 @@ const App: React.FC = () => {
                                                 border: '1px solid #222',
                                                 fontSize: 12,
                                                 cursor: isUploading ? 'not-allowed' : 'pointer',
-                                                color: '#0c66ff',
+                                                color: 'var(--accent-color)',
                                                 background: 'rgba(12, 102, 255, 0.05)'
                                             }}>
                                                 {isUploading ? '⌛ Uploading...' : '📎 Upload File'}
@@ -3036,18 +3134,18 @@ const App: React.FC = () => {
                                                             {a.content_type?.startsWith('image/') ? '🖼️' : '📎'}
                                                         </div>
                                                         <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <a href="#" onClick={(e) => { e.preventDefault(); downloadFile(a.content_url, a.filename); }} style={{ color: '#0c66ff', fontSize: 13, fontWeight: 500, textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.filename}</a>
+                                                            <a href="#" onClick={(e) => { e.preventDefault(); downloadFile(a.content_url, a.filename); }} style={{ color: 'var(--accent-color)', fontSize: 13, fontWeight: 500, textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.filename}</a>
                                                             <span style={{ fontSize: 11, color: '#555' }}>{(a.filesize / 1024).toFixed(1)} KB</span>
                                                         </div>
                                                     </div>
                                                 ))}
                                                 {filteredPending.map((u, idx) => (
-                                                    <div key={`pending-${idx}`} style={{ background: '#111', padding: '12px', borderRadius: 12, border: '1px dashed #0c66ff', display: 'flex', alignItems: 'center', gap: 12, opacity: 0.8 }}>
+                                                    <div key={`pending-${idx}`} style={{ background: '#111', padding: '12px', borderRadius: 12, border: '1px dashed var(--accent-color)', display: 'flex', alignItems: 'center', gap: 12, opacity: 0.8 }}>
                                                         <div style={{ width: 32, height: 32, background: 'var(--card-bg)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
                                                             ⏳
                                                         </div>
                                                         <div style={{ flex: 1, minWidth: 0 }}>
-                                                            <div style={{ color: '#0c66ff', fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.filename}</div>
+                                                            <div style={{ color: 'var(--accent-color)', fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.filename}</div>
                                                             <span style={{ fontSize: 11, color: '#444' }}>Ready to save</span>
                                                         </div>
                                                         <button onClick={() => setPendingUploads(prev => prev.filter(item => item.token !== u.token))} style={{ background: 'none', border: 'none', color: '#666', cursor: 'pointer', padding: '0 5px', fontSize: 16 }}>✕</button>
