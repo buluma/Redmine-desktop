@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useMemo, useRef, startTransition } fr
 import { RedmineService } from '../services/RedmineService';
 import { Project, Issue, Version, User, IssueStatus, IssuePriority } from '../models/redmine';
 import { getAssignedWatchers, getAssignedWatchersField, createAssignedWatchersUpdate } from '../utils/assignedWatchers';
+import { showToast } from '../components/Toast';
+import * as IssueCache from '../services/IssueCache';
 
 export function useAppViewModel() {
     const [redmineURL, setRedmineURL] = useState(localStorage.getItem('redmineURL') || '');
@@ -14,18 +16,45 @@ export function useAppViewModel() {
     // Explicitly track if the user has successfully configured and saved
     const [isConfigured, setIsConfigured] = useState(!!(redmineURL && redmineAPIKey));
 
+    // Load secure key on mount
+    useEffect(() => {
+        const loadSecureKey = async () => {
+            if (localStorage.getItem('hasSecureKey') === 'true') {
+                try {
+                    const secureKey = await window.secureStore?.retrieve('redmineAPIKey');
+                    if (secureKey && !redmineAPIKey) {
+                        setRedmineAPIKey(secureKey);
+                        setIsConfigured(!!(redmineURL && secureKey));
+                    }
+                } catch (e) {
+                    console.warn('Failed to load secure key:', e);
+                }
+                // Secure storage is now authoritative for this key; clear any lingering
+                // plaintext copy so it doesn't sit in localStorage indefinitely.
+                localStorage.removeItem('redmineAPIKey');
+            } else {
+                // Migrate a legacy plaintext key (saved before secure storage existed)
+                // into secure storage, then remove the plaintext copy.
+                const legacyKey = localStorage.getItem('redmineAPIKey');
+                if (legacyKey) {
+                    try {
+                        await window.secureStore?.store('redmineAPIKey', legacyKey);
+                        localStorage.setItem('hasSecureKey', 'true');
+                        localStorage.removeItem('redmineAPIKey');
+                    } catch (e) {
+                        console.warn('Failed to migrate legacy API key to secure storage:', e);
+                    }
+                }
+            }
+        };
+        loadSecureKey();
+    }, []);
+
     const isRefreshingRef = useRef(false);
 
     const [projects, setProjects] = useState<Project[]>([]);
-    // Load cached issues from localStorage on startup
-    const [allIssues, setAllIssues] = useState<Issue[]>(() => {
-        try {
-            const cached = localStorage.getItem('cachedIssues');
-            return cached ? JSON.parse(cached) : [];
-        } catch {
-            return [];
-        }
-    });
+    // IndexedDB loading is async, so we start empty and load in an effect below.
+    const [allIssues, setAllIssues] = useState<Issue[]>([]);
     const [currentUser, setCurrentUser] = useState<User | null>(null);
     const [issueStatuses, setIssueStatuses] = useState<IssueStatus[]>([]);
     const [issuePriorities, setIssuePriorities] = useState<IssuePriority[]>([]);
@@ -84,14 +113,8 @@ export function useAppViewModel() {
         return saved ? new Set(JSON.parse(saved)) : new Set();
     });
     const [selectedStatusId, setSelectedStatusId] = useState<number | null>(null);
-    const [followedIssueIds, setFollowedIssueIds] = useState<Set<number>>(() => {
-        try {
-            const cached = localStorage.getItem('cachedFollowedIssueIds');
-            return cached ? new Set(JSON.parse(cached)) : new Set();
-        } catch {
-            return new Set();
-        }
-    });
+    // IndexedDB loading is async, so we start empty and load in an effect below.
+    const [followedIssueIds, setFollowedIssueIds] = useState<Set<number>>(new Set());
     const [hideVerifiedInFollowed, setHideVerifiedInFollowed] = useState<boolean>(() => {
         const saved = localStorage.getItem('hideVerifiedInFollowed');
         return saved === 'true';
@@ -105,6 +128,46 @@ export function useAppViewModel() {
     useEffect(() => {
         followedIssueIdsRef.current = followedIssueIds;
     }, [followedIssueIds]);
+
+    const issueStatusesRef = useRef(issueStatuses);
+    useEffect(() => {
+        issueStatusesRef.current = issueStatuses;
+    }, [issueStatuses]);
+
+    const issuePrioritiesRef = useRef(issuePriorities);
+    useEffect(() => {
+        issuePrioritiesRef.current = issuePriorities;
+    }, [issuePriorities]);
+
+    // Tracks whether a network refresh has already populated allIssues, so the
+    // (slower) IndexedDB cache-load effect below doesn't clobber fresher state
+    // with a stale cached snapshot if it resolves afterwards.
+    const hasSetIssuesFromNetworkRef = useRef(false);
+
+    // Load cache from IndexedDB on mount (migrating any legacy localStorage cache first)
+    useEffect(() => {
+        const loadCache = async () => {
+            try {
+                const migrated = await IssueCache.migrateFromLocalStorage();
+                if (migrated > 0) {
+                    console.log(`[useAppViewModel] Migrated ${migrated} issues from localStorage`);
+                }
+
+                const cachedIssues = await IssueCache.getAllIssues();
+                if (cachedIssues.length > 0 && !hasSetIssuesFromNetworkRef.current) {
+                    setAllIssues(cachedIssues);
+                }
+
+                const followedRaw = await IssueCache.getMeta('followedIssueIds');
+                if (followedRaw) {
+                    setFollowedIssueIds(new Set(JSON.parse(followedRaw)));
+                }
+            } catch (e) {
+                console.warn('[useAppViewModel] Failed to load cache from IndexedDB:', e);
+            }
+        };
+        loadCache();
+    }, []);
 
     const [isLoading, setIsLoading] = useState(false);
     const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
@@ -227,6 +290,12 @@ export function useAppViewModel() {
 
             console.log(`[refreshIssues] Fetched ${allFetchedIssues.length} issues from ${activeVersionArray.length} active versions`);
 
+            if (activeVersionArray.length > 0) {
+                // Only mark network data as authoritative if we actually fetched something —
+                // an empty active-version set means this refresh has nothing to say about
+                // allIssues, and shouldn't block a legitimate IndexedDB cache load.
+                hasSetIssuesFromNetworkRef.current = true;
+            }
             // Update issues list - merge active version issues, preserve old issue detail fields (attachments, journals, etc.)
             setAllIssues(prev => {
                 const refreshedVersionIds = new Set(activeVersionArray);
@@ -288,12 +357,10 @@ export function useAppViewModel() {
 
                 console.log(`[refreshIssues] Total issues after update: ${newIssuesList.length} (was: ${prev.length})`);
 
-                // Save to localStorage cache
-                try {
-                    localStorage.setItem('cachedIssues', JSON.stringify(newIssuesList));
-                } catch (e) {
-                    console.warn('Failed to cache issues:', e);
-                }
+                hasSetIssuesFromNetworkRef.current = true;
+                IssueCache.saveIssues(newIssuesList).catch(e =>
+                    console.warn('[useAppViewModel] Failed to save issues to IndexedDB:', e)
+                );
                 return newIssuesList;
             });
 
@@ -344,11 +411,9 @@ export function useAppViewModel() {
                     if (prev.size === followedIds.size && Array.from(prev).every(id => followedIds.has(id))) {
                         return prev;
                     }
-                    try {
-                        localStorage.setItem('cachedFollowedIssueIds', JSON.stringify(Array.from(followedIds)));
-                    } catch (e) {
-                        console.warn('Failed to cache followed IDs:', e);
-                    }
+                    IssueCache.saveMeta('followedIssueIds', JSON.stringify(Array.from(followedIds))).catch(e =>
+                        console.warn('[useAppViewModel] Failed to save followed IDs to IndexedDB:', e)
+                    );
                     return followedIds;
                 });
 
@@ -393,11 +458,10 @@ export function useAppViewModel() {
                     });
                     if (changed) {
                         const newIssues = Array.from(issueMap.values());
-                        try {
-                            localStorage.setItem('cachedIssues', JSON.stringify(newIssues));
-                        } catch (e) {
-                            console.warn('Failed to cache issues:', e);
-                        }
+                        hasSetIssuesFromNetworkRef.current = true;
+                        IssueCache.saveIssues(newIssues).catch(e =>
+                            console.warn('[useAppViewModel] Failed to save issues to IndexedDB:', e)
+                        );
                         return newIssues;
                     }
                     return prev;
@@ -662,10 +726,17 @@ export function useAppViewModel() {
 
     const saveSettings = async (url: string, key: string) => {
         localStorage.setItem('redmineURL', url);
-        localStorage.setItem('redmineAPIKey', key);
+        if (key) {
+            await window.secureStore?.store('redmineAPIKey', key);
+            localStorage.setItem('hasSecureKey', 'true');
+        } else {
+            await window.secureStore?.remove('redmineAPIKey');
+            localStorage.removeItem('hasSecureKey');
+        }
         setRedmineURL(url);
         setRedmineAPIKey(key);
         setIsConfigured(true);
+        (window as any).ipcRenderer?.send('save-redmine-url', url);
         // loadInitialData will be triggered by useEffect
     };
 
@@ -835,15 +906,57 @@ export function useAppViewModel() {
 
     const updateIssue = async (id: number, data: any) => {
         if (!service) return;
-        setIsLoading(true);
+
+        // Read the pre-update snapshot synchronously from the current render's closure
+        // (not from inside the setAllIssues updater, which may run after this function
+        // has already moved on to the network call, leaving previousIssue unset for rollback).
+        const previousIssue = allIssues.find(i => i.id === id);
+        if (!previousIssue) return;
+
+        // Optimistic update: immediately apply changes to local state
+        const optimistic: Issue = {
+            ...previousIssue,
+            ...(data.status_id !== undefined && { status: previousIssue.status }),
+            ...(data.priority_id !== undefined && { priority: previousIssue.priority }),
+            ...(data.assigned_to_id !== undefined && { assigned_to: previousIssue.assigned_to }),
+            ...(data.fixed_version_id !== undefined && { fixed_version: previousIssue.fixed_version }),
+            updated_on: new Date().toISOString(),
+        };
+
+        if (data.status_id !== undefined) {
+            // Look up the real name so the change is visible immediately (IssueItem renders
+            // status.name), instead of only updating id and waiting on fetchIssueDetail.
+            const matchedStatus = issueStatusesRef.current.find(s => s.id === data.status_id);
+            optimistic.status = matchedStatus ? { ...previousIssue.status, ...matchedStatus } : { ...previousIssue.status, id: data.status_id };
+        }
+        if (data.priority_id !== undefined) {
+            const matchedPriority = issuePrioritiesRef.current.find(p => p.id === data.priority_id);
+            optimistic.priority = matchedPriority ? { ...previousIssue.priority, ...matchedPriority } : { ...previousIssue.priority, id: data.priority_id };
+        }
+        if (data.assigned_to_id !== undefined) {
+            optimistic.assigned_to = data.assigned_to_id
+                ? { id: parseInt(data.assigned_to_id), name: '' }
+                : undefined;
+        }
+        if (data.fixed_version_id !== undefined) {
+            optimistic.fixed_version = data.fixed_version_id
+                ? { id: parseInt(data.fixed_version_id), name: '' }
+                : undefined;
+        }
+        if (data.subject !== undefined) {
+            optimistic.subject = data.subject;
+        }
+
+        setAllIssues(prev => prev.map(i => i.id === id ? optimistic : i));
+
         try {
             await service.updateIssue(id, data);
             const updated = await service.fetchIssueDetail(id);
             setAllIssues(prev => prev.map(i => i.id === id ? updated : i));
         } catch (e: any) {
+            setAllIssues(prev => prev.map(i => i.id === id ? previousIssue : i));
             setErrorMessage(e.message);
-        } finally {
-            setIsLoading(false);
+            showToast.error(`Update failed: ${e.message}`);
         }
     };
 
@@ -864,16 +977,9 @@ export function useAppViewModel() {
             // Directly add the new issue to the list instead of refreshing all issues
             // This provides instant feedback to the user
             setAllIssues(prev => [newIssue, ...prev]);
-            // Also update localStorage cache
-            try {
-                const cached = localStorage.getItem('cachedIssues');
-                if (cached) {
-                    const cachedIssues = JSON.parse(cached);
-                    localStorage.setItem('cachedIssues', JSON.stringify([newIssue, ...cachedIssues]));
-                }
-            } catch (e) {
-                console.warn('Failed to update cache:', e);
-            }
+            IssueCache.saveIssues([newIssue]).catch(e =>
+                console.warn('[useAppViewModel] Failed to save new issue to IndexedDB:', e)
+            );
         } catch (e: any) {
             setErrorMessage(e.message);
         } finally {
@@ -1237,6 +1343,8 @@ export function useAppViewModel() {
     }, [service, allIssues]);
 
     return {
+        // Redmine service instance (null until URL + API key are configured)
+        service,
         isConfigured,
         saveSettings,
         projects,
