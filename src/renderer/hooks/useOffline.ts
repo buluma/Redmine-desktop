@@ -27,6 +27,7 @@ export function useOffline(
     const hasShownOfflineToast = useRef(false)
     const currentMutationRef = useRef<QueuedMutation | null>(null)
     const conflictQueueRef = useRef<Array<{ mutation: QueuedMutation; conflict: ConflictInfo }>>([])
+    const isProcessingRef = useRef(false)
 
     // Refresh pending count
     const refreshPendingCount = useCallback(async () => {
@@ -163,6 +164,8 @@ export function useOffline(
     // Process the queue when back online
     const processQueue = useCallback(async () => {
         if (!service) return
+        if (isProcessingRef.current) return // guard against overlapping runs from a flapping reconnect
+        isProcessingRef.current = true
 
         setIsProcessingQueue(true)
         try {
@@ -215,6 +218,7 @@ export function useOffline(
             console.error('[useOffline] Failed to process queue:', error)
             showToast.error('Failed to sync offline changes')
         } finally {
+            isProcessingRef.current = false
             setIsProcessingQueue(false)
             await refreshPendingCount()
         }

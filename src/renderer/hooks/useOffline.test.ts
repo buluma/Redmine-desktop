@@ -9,6 +9,10 @@ vi.mock('../services/OfflineQueue', () => ({
     getPendingCount: vi.fn().mockResolvedValue(0),
     clearStaleMutations: vi.fn().mockResolvedValue(0),
     processQueue: vi.fn().mockResolvedValue({ succeeded: 0, failed: 0, remaining: 0 }),
+    getPendingMutations: vi.fn().mockResolvedValue([]),
+    removeMutation: vi.fn().mockResolvedValue(undefined),
+    shouldRetry: vi.fn().mockReturnValue(true),
+    updateMutationError: vi.fn().mockResolvedValue(undefined),
 }))
 
 // Mock service
@@ -98,16 +102,57 @@ describe('useOffline - Online/Offline Events', () => {
 
     it('updates isOnline when coming back online', async () => {
         Object.defineProperty(navigator, 'onLine', { value: false })
-        
+
         const { result } = renderHook(() => useOffline(mockService, mockFetchIssueDetail))
-        
+
         expect(result.current.isOnline).toBe(false)
-        
+
         act(() => {
             Object.defineProperty(navigator, 'onLine', { value: true })
             window.dispatchEvent(new Event('online'))
         })
-        
+
         expect(result.current.isOnline).toBe(true)
+    })
+
+    it('does not process the queue twice concurrently on a flapping reconnect', async () => {
+        vi.useFakeTimers()
+        // Hold the first processQueue run "in flight" (mimicking a real, slow sync)
+        // so a second reconnect while it's still running can be observed as a no-op.
+        let resolveClear: () => void = () => {}
+        const inFlight = new Promise<number>(resolve => { resolveClear = () => resolve(0) })
+        vi.mocked(OfflineQueue.clearStaleMutations).mockReturnValueOnce(inFlight)
+
+        try {
+            renderHook(() => useOffline(mockService, mockFetchIssueDetail))
+
+            // First reconnect: fires, starts processQueue, which is now stuck awaiting `inFlight`.
+            act(() => {
+                window.dispatchEvent(new Event('online'))
+            })
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(1000)
+            })
+
+            // Flapping reconnect while the first run is still in flight.
+            act(() => {
+                window.dispatchEvent(new Event('online'))
+            })
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(1000)
+            })
+
+            // Let the first run finish.
+            await act(async () => {
+                resolveClear()
+                await Promise.resolve()
+                await Promise.resolve()
+            })
+
+            expect(vi.mocked(OfflineQueue.getPendingMutations)).toHaveBeenCalledTimes(1)
+        } finally {
+            vi.mocked(OfflineQueue.clearStaleMutations).mockResolvedValue(0)
+            vi.useRealTimers()
+        }
     })
 })

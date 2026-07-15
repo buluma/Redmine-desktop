@@ -296,6 +296,9 @@ export function useAppViewModel() {
     }, [service])
 
     return {
+        // Redmine service instance (null until URL + API key are configured)
+        service,
+
         // Settings
         isConfigured: settings.isConfigured,
         saveSettings: settings.saveSettings,
