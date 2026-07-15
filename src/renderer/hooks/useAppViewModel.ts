@@ -172,6 +172,12 @@ export function useAppViewModel() {
             } catch (e) {
                 console.warn('[useAppViewModel] Failed to load cache from IndexedDB:', e);
             }
+
+            // Non-critical bookkeeping; runs after the active cache is loaded so it
+            // never competes with startup, and never touches the active server's db.
+            IssueCache.cleanupStaleServerCaches().catch(e =>
+                console.warn('[useAppViewModel] Failed to clean up stale server caches:', e)
+            );
         };
         loadCache();
     }, []);

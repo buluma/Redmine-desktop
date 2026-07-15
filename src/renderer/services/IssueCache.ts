@@ -54,16 +54,84 @@ function getScopeKey(): string {
 
 const dbInstances = new Map<string, IssueCacheDB>()
 
+// ── Per-server database registry ────────────────────────────────────────────
+// Tracks when each scoped database was last used, so cleanupStaleServerCaches
+// can delete ones nobody's touched in a long time instead of letting them
+// accumulate forever every time a user switches Redmine servers.
+
+const REGISTRY_KEY = 'issueCacheDbRegistry'
+
+function readRegistry(): Record<string, number> {
+    try {
+        const raw = localStorage.getItem(REGISTRY_KEY)
+        return raw ? JSON.parse(raw) : {}
+    } catch {
+        return {}
+    }
+}
+
+function writeRegistry(registry: Record<string, number>): void {
+    try {
+        localStorage.setItem(REGISTRY_KEY, JSON.stringify(registry))
+    } catch {
+        // Non-critical bookkeeping; ignore storage failures.
+    }
+}
+
+function touchRegistry(dbName: string): void {
+    const registry = readRegistry()
+    registry[dbName] = Date.now()
+    writeRegistry(registry)
+}
+
+function currentDbName(): string {
+    const scopeKey = getScopeKey()
+    return scopeKey ? `${BASE_DB_NAME}::${scopeKey}` : BASE_DB_NAME
+}
+
 /** Returns the Dexie instance for the currently-configured Redmine server, creating it on first use. */
 function getDb(): IssueCacheDB {
-    const scopeKey = getScopeKey()
-    const dbName = scopeKey ? `${BASE_DB_NAME}::${scopeKey}` : BASE_DB_NAME
+    const dbName = currentDbName()
+    touchRegistry(dbName)
     let instance = dbInstances.get(dbName)
     if (!instance) {
         instance = new IssueCacheDB(dbName)
         dbInstances.set(dbName, instance)
     }
     return instance
+}
+
+const DEFAULT_MAX_AGE_DAYS = 90
+
+/**
+ * Deletes scoped databases for servers that haven't been accessed in
+ * `maxAgeDays` days. Never touches the currently-active server's database,
+ * regardless of its recorded age. Returns the names of deleted databases.
+ */
+export async function cleanupStaleServerCaches(maxAgeDays: number = DEFAULT_MAX_AGE_DAYS): Promise<string[]> {
+    const registry = readRegistry()
+    const active = currentDbName()
+    const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000
+    const deleted: string[] = []
+
+    for (const [dbName, lastAccessed] of Object.entries(registry)) {
+        if (dbName === active || lastAccessed >= cutoff) continue
+        try {
+            await Dexie.delete(dbName)
+            dbInstances.delete(dbName)
+            delete registry[dbName]
+            deleted.push(dbName)
+        } catch (e) {
+            console.warn(`[IssueCache] Failed to delete stale cache "${dbName}":`, e)
+        }
+    }
+
+    if (deleted.length > 0) {
+        writeRegistry(registry)
+        log.debug(`[IssueCache] Cleaned up ${deleted.length} stale server cache(s):`, deleted)
+    }
+
+    return deleted
 }
 
 // ── Issue Operations ────────────────────────────────────────────────────────
