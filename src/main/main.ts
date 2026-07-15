@@ -60,16 +60,14 @@ const trayIconCache: Record<TrayIconVariant, Electron.NativeImage> = {} as Recor
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
 function generateColoredIcon(baseColor: string): Electron.NativeImage {
-    // Generate a colored version of the tray icon by modifying the SVG inline
+    // Generate a colored version of the tray icon by modifying the SVG inline.
+    // Bold solid badge + single glyph: multi-curve line art anti-aliases to
+    // near-invisible at 16px menu-bar size, so keep this shape simple and
+    // high-contrast (a filled square is legible where fine strokes aren't).
     const size = process.platform === 'darwin' ? 16 : 32
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="${size}" height="${size}">
-  <g fill="${baseColor}">
-    <path d="M5,10 C3,13 3,17 5,19 L7,21 C8,22 9,23 9,25 L9,28 C9,29 10,30 11,30 C12,30 13,29 13,28 L13,25 C13,23 14,22 15,21 L17,19 C19,17 19,13 17,11 L15,9 C13,7 11,7 9,9 Z"/>
-    <circle cx="13" cy="10" r="5"/>
-    <circle cx="14.5" cy="8.5" r="1.3" fill="${baseColor === '#808080' ? '#ccc' : 'white'}"/>
-    <circle cx="15" cy="8.2" r="0.7" fill="#2d2d2d"/>
-    <path d="M17,10 L22,11 L17,12 Z" fill="${baseColor === '#808080' ? '#999' : '#f4a261'}"/>
-  </g>
+  <rect x="2" y="2" width="28" height="28" rx="7" fill="${baseColor}"/>
+  <text x="16" y="23" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="20" font-weight="700" text-anchor="middle" fill="#ffffff">R</text>
 </svg>`
     // Not a template image: template mode makes macOS render the icon as a plain
     // monochrome silhouette (ignoring these colors entirely), which would defeat
