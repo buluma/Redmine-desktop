@@ -66,87 +66,10 @@ export async function getAllIssues(): Promise<Issue[]> {
 }
 
 /**
- * Get issues by version ID.
- */
-export async function getIssuesByVersion(versionId: number): Promise<Issue[]> {
-    const cached = await db.issues
-        .where('fixed_version.id')
-        .equals(versionId)
-        .toArray()
-    return cached.map(({ cachedAt, ...issue }) => issue)
-}
-
-/**
- * Get issues by assignee ID.
- */
-export async function getIssuesByAssignee(assigneeId: number): Promise<Issue[]> {
-    const cached = await db.issues
-        .where('assigned_to.id')
-        .equals(assigneeId)
-        .toArray()
-    return cached.map(({ cachedAt, ...issue }) => issue)
-}
-
-/**
- * Get specific issues by their IDs.
- */
-export async function getIssuesByIds(ids: number[]): Promise<Issue[]> {
-    const cached = await db.issues.bulkGet(ids)
-    return cached
-        .filter((item): item is CachedIssue => item !== undefined)
-        .map(({ cachedAt, ...issue }) => issue)
-}
-
-/**
- * Get a single issue by ID.
- */
-export async function getIssue(id: number): Promise<Issue | undefined> {
-    const cached = await db.issues.get(id)
-    if (!cached) return undefined
-    const { cachedAt, ...issue } = cached
-    return issue
-}
-
-/**
- * Update a single issue.
- */
-export async function updateIssue(issue: Issue): Promise<void> {
-    const existing = await db.issues.get(issue.id)
-    await db.issues.put({
-        ...issue,
-        cachedAt: existing?.cachedAt ?? Date.now(),
-    })
-}
-
-/**
- * Remove issues by their IDs.
- */
-export async function removeIssues(ids: number[]): Promise<void> {
-    await db.issues.bulkDelete(ids)
-}
-
-/**
- * Remove all issues for a set of version IDs.
- */
-export async function removeIssuesByVersion(versionIds: number[]): Promise<void> {
-    await db.issues
-        .where('fixed_version.id')
-        .anyOf(versionIds)
-        .delete()
-}
-
-/**
  * Clear all cached issues.
  */
 export async function clearAllIssues(): Promise<void> {
     await db.issues.clear()
-}
-
-/**
- * Get the count of cached issues.
- */
-export async function getIssueCount(): Promise<number> {
-    return db.issues.count()
 }
 
 // ── Metadata Operations ─────────────────────────────────────────────────────
