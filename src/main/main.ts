@@ -85,13 +85,13 @@ function cacheTrayIcons() {
     trayIconCache['red'] = generateColoredIcon('#ff453a')
 }
 
-function openMyAssignedStatusFromTray(statusId: number) {
+function openMyAssignedStatusFromTray(statusName: string) {
     if (!win || win.isDestroyed()) {
         createWindow()
     }
     win?.show()
     win?.focus()
-    win?.webContents.send('open-my-assigned-status', statusId)
+    win?.webContents.send('open-my-assigned-status', statusName)
 }
 
 function buildTrayContextMenu() {
@@ -101,7 +101,7 @@ function buildTrayContextMenu() {
             { label: 'My Issues', enabled: false },
             ...currentStatusCounts.map(s => ({
                 label: `${s.statusName}  (${s.count})`,
-                click: () => openMyAssignedStatusFromTray(s.statusId),
+                click: () => openMyAssignedStatusFromTray(s.statusName),
             })),
             { type: 'separator' as const },
         ]
