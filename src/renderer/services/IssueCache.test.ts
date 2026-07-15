@@ -7,6 +7,7 @@ import {
     getMeta,
     removeMeta,
     migrateFromLocalStorage,
+    cleanupStaleServerCaches,
 } from './IssueCache'
 import { Issue } from '../models/redmine'
 
@@ -195,6 +196,60 @@ describe('per-server cache scoping', () => {
         await saveIssues([makeIssue({ id: 1, subject: 'Cached' })])
 
         localStorage.setItem('redmineURL', 'http://scope-test-3.example.com')
+        expect(await getAllIssues()).toHaveLength(1)
+    })
+})
+
+describe('cleanupStaleServerCaches', () => {
+    it('deletes a server\'s cache once its last-accessed timestamp is past maxAgeDays', async () => {
+        localStorage.setItem('redmineURL', 'https://cleanup-test-old.example.com')
+        await saveIssues([makeIssue({ id: 1 })])
+        expect(await getAllIssues()).toHaveLength(1)
+
+        // Backdate that server's registry entry past the cutoff.
+        const registry = JSON.parse(localStorage.getItem('issueCacheDbRegistry') || '{}')
+        const oldDbName = Object.keys(registry).find(k => k.includes('cleanup-test-old'))!
+        registry[oldDbName] = Date.now() - 100 * 24 * 60 * 60 * 1000 // 100 days ago
+        localStorage.setItem('issueCacheDbRegistry', JSON.stringify(registry))
+
+        // A different server is now the active one.
+        localStorage.setItem('redmineURL', 'https://cleanup-test-current.example.com')
+
+        const deleted = await cleanupStaleServerCaches(90)
+        expect(deleted).toContain(oldDbName)
+
+        // Switching back shows an empty cache -- its database was actually deleted.
+        localStorage.setItem('redmineURL', 'https://cleanup-test-old.example.com')
+        expect(await getAllIssues()).toHaveLength(0)
+    })
+
+    it('never deletes the currently active server\'s cache, regardless of recorded age', async () => {
+        localStorage.setItem('redmineURL', 'https://cleanup-test-active.example.com')
+        await saveIssues([makeIssue({ id: 1 })])
+
+        const registry = JSON.parse(localStorage.getItem('issueCacheDbRegistry') || '{}')
+        const dbName = Object.keys(registry).find(k => k.includes('cleanup-test-active'))!
+        registry[dbName] = Date.now() - 1000 * 24 * 60 * 60 * 1000 // very old
+        localStorage.setItem('issueCacheDbRegistry', JSON.stringify(registry))
+
+        const deleted = await cleanupStaleServerCaches(90)
+
+        expect(deleted).not.toContain(dbName)
+        expect(await getAllIssues()).toHaveLength(1)
+    })
+
+    it('leaves a recently-accessed server\'s cache alone', async () => {
+        localStorage.setItem('redmineURL', 'https://cleanup-test-recent.example.com')
+        await saveIssues([makeIssue({ id: 1 })])
+
+        localStorage.setItem('redmineURL', 'https://cleanup-test-other.example.com')
+        const deleted = await cleanupStaleServerCaches(90)
+
+        const registry = JSON.parse(localStorage.getItem('issueCacheDbRegistry') || '{}')
+        const recentDbName = Object.keys(registry).find(k => k.includes('cleanup-test-recent'))!
+        expect(deleted).not.toContain(recentDbName)
+
+        localStorage.setItem('redmineURL', 'https://cleanup-test-recent.example.com')
         expect(await getAllIssues()).toHaveLength(1)
     })
 })

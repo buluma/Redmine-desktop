@@ -32,6 +32,7 @@ vi.mock('../services/IssueCache', () => ({
     getMeta: vi.fn().mockResolvedValue(null),
     saveIssues: vi.fn().mockResolvedValue(undefined),
     saveMeta: vi.fn().mockResolvedValue(undefined),
+    cleanupStaleServerCaches: vi.fn().mockResolvedValue([]),
 }))
 
 import * as IssueCache from '../services/IssueCache'
