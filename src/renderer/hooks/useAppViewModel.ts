@@ -675,6 +675,21 @@ export function useAppViewModel() {
         }
     }, [selectedProjectId, fetchProjectDetails, isConfigured]);
 
+    // Members/versions are otherwise only fetched for the single sidebar-selected
+    // project. Issues from any other project (a cross-project "my issues" list,
+    // remote search results) would have no cached member list, which makes their
+    // assignee/version <select>s silently fall back to "Unassigned"/blank even
+    // when correctly assigned -- backfill every project actually in view.
+    useEffect(() => {
+        if (!isConfigured) return;
+        const projectIds = new Set<number>();
+        allIssues.forEach(i => { if (i.project?.id) projectIds.add(i.project.id); });
+        remoteSearchResults.forEach(i => { if (i.project?.id) projectIds.add(i.project.id); });
+        projectIds.forEach(id => {
+            if (!projectMembersMap[id]) fetchProjectDetails(id);
+        });
+    }, [allIssues, remoteSearchResults, projectMembersMap, fetchProjectDetails, isConfigured]);
+
     useEffect(() => {
         if (isConfigured) {
             refreshIssues();
