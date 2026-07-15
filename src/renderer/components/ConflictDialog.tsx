@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { ConflictInfo, describeFieldValue } from '../services/ConflictResolver'
 
 interface ConflictDialogProps {
@@ -7,6 +7,8 @@ interface ConflictDialogProps {
     onDismiss: () => void
 }
 
+const DIALOG_TITLE_ID = 'conflict-dialog-title'
+
 export const ConflictDialog: React.FC<ConflictDialogProps> = ({
     conflict,
     onResolve,
@@ -14,6 +16,37 @@ export const ConflictDialog: React.FC<ConflictDialogProps> = ({
 }) => {
     const [selectedResolution, setSelectedResolution] = useState<'local' | 'server' | 'merge'>('server')
     const [fieldOverrides, setFieldOverrides] = useState<Record<string, 'local' | 'server'>>({})
+    const dialogRef = useRef<HTMLDivElement>(null)
+
+    // Move focus into the dialog on mount, so keyboard/screen-reader users
+    // land here instead of whatever was focused behind it.
+    useEffect(() => {
+        dialogRef.current?.focus()
+    }, [])
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === 'Escape') {
+            e.preventDefault()
+            onDismiss()
+            return
+        }
+        if (e.key !== 'Tab' || !dialogRef.current) return
+
+        const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+            'button, input, [tabindex]:not([tabindex="-1"])'
+        )
+        if (focusable.length === 0) return
+        const first = focusable[0]
+        const last = focusable[focusable.length - 1]
+
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault()
+            last.focus()
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault()
+            first.focus()
+        }
+    }
 
     const handleFieldToggle = (field: string) => {
         setFieldOverrides(prev => ({
@@ -52,14 +85,21 @@ export const ConflictDialog: React.FC<ConflictDialogProps> = ({
             justifyContent: 'center',
             zIndex: 10000,
         }}>
-            <div style={{
-                background: 'var(--bg-primary, #1e1e1e)',
-                borderRadius: '12px',
-                padding: '24px',
-                maxWidth: '500px',
-                width: '90%',
-                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-            }}>
+            <div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={DIALOG_TITLE_ID}
+                tabIndex={-1}
+                onKeyDown={handleKeyDown}
+                style={{
+                    background: 'var(--bg-primary, #1e1e1e)',
+                    borderRadius: '12px',
+                    padding: '24px',
+                    maxWidth: '500px',
+                    width: '90%',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+                }}>
                 {/* Header */}
                 <div style={{
                     display: 'flex',
@@ -69,7 +109,7 @@ export const ConflictDialog: React.FC<ConflictDialogProps> = ({
                 }}>
                     <span style={{ fontSize: '24px' }}>⚠️</span>
                     <div>
-                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
+                        <h3 id={DIALOG_TITLE_ID} style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
                             Sync Conflict
                         </h3>
                         <p style={{ margin: '4px 0 0', fontSize: '13px', opacity: 0.7 }}>
