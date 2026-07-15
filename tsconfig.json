@@ -5,16 +5,22 @@
         "lib": [ "DOM", "DOM.Iterable", "ESNext" ],
         "allowJs": false,
         "skipLibCheck": true,
-        "esModuleInterop": false,
+        "esModuleInterop": true,
         "allowSyntheticDefaultImports": true,
         "strict": true,
         "forceConsistentCasingInFileNames": true,
         "module": "ESNext",
-        "moduleResolution": "Node",
+        "moduleResolution": "bundler",
         "resolveJsonModule": true,
         "isolatedModules": true,
         "noEmit": true,
-        "jsx": "react-jsx"
+        "jsx": "react-jsx",
+        // @toast-ui/editor's package.json "exports" map has no "types" condition,
+        // so bundler-mode resolution can't find its declarations even though the
+        // file exists on disk. Point straight at it rather than losing types.
+        "paths": {
+            "@toast-ui/editor": [ "./node_modules/@toast-ui/editor/types/index.d.ts" ]
+        }
     },
     "include": [ "src" ],
     "references": [ { "path": "./tsconfig.node.json" } ]

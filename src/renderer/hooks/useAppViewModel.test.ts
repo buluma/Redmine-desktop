@@ -21,7 +21,12 @@ const mocks = vi.hoisted(() => {
 })
 
 vi.mock('../services/RedmineService', () => ({
-    RedmineService: vi.fn().mockImplementation(() => mocks),
+    // Vitest 4 requires constructor mocks to use `function`/`class` syntax --
+    // an arrow-function implementation throws "not a constructor" when the
+    // real code does `new RedmineService(...)`.
+    RedmineService: vi.fn().mockImplementation(function (this: any) {
+        Object.assign(this, mocks)
+    }),
 }))
 
 // Mock the IndexedDB-backed cache so tests control cache contents directly
