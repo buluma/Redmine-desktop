@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@toast-ui/editor": "^3.2.2",
-    "axios": "^1.6.0",
+    "axios": "^1.19.0",
     "date-fns": "^4.4.0",
     "dexie": "^4.4.4",
     "electron-log": "^5.4.4",
