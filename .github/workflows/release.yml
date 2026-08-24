@@ -22,16 +22,20 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version: '20'
-          cache: 'npm'
-      
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
       - name: Install dependencies
-        run: npm ci
-      
+        run: bun install --frozen-lockfile
+
       # Build arm64 only. --publish never: electron-builder >=26 auto-publishes to
       # GitHub the moment it sees a tag + GH_TOKEN, which races with (and breaks)
       # the dedicated `release` job below that assembles the full, changelog'd release.
       - name: Build Electron app
-        run: npm run build -- --mac --arm64 --publish never
+        run: bun run build -- --mac --arm64 --publish never
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
