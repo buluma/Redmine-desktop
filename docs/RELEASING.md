@@ -48,7 +48,7 @@ reputation):
 Don't flip these locally without testing — `CSC_IDENTITY_AUTO_DISCOVERY`
 defaults to `true` outside CI, so removing `identity: null` on a dev
 machine with *any* signing identity in the keychain will change what
-`npm run build` produces.
+`bun run build` produces.
 
 ## Branch protection
 

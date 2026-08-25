@@ -28,7 +28,7 @@ Redmine-Desktop provides a premium native-like experience for managing your Redm
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) (Recommended version 18 or higher)
-- npm or yarn
+- [Bun](https://bun.sh/)
 
 ### Installation
 
@@ -58,14 +58,14 @@ This removes the quarantine attribute that macOS adds to downloaded files.
 
 2. Install dependencies:
    ```bash
-   npm install
+   bun install
    ```
 
 ### Development
 
 Run the application in development mode:
 ```bash
-npm run dev
+bun run dev
 ```
 
 ### Building & Packaging
@@ -74,11 +74,11 @@ To build and package the application for your current platform:
 
 ```bash
 # General build (detects current OS)
-npm run build
+bun run build
 
 # Specific platform builds
-npx electron-builder --mac --arm64
-npx electron-builder --win --x64
+bunx electron-builder --mac --arm64
+bunx electron-builder --win --x64
 ```
 
 Output files will be located in the `release/` directory.
