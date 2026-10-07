@@ -1,4 +1,4 @@
-import '@testing-library/jest-dom'
+import '@testing-library/jest-dom/vitest'
 import 'fake-indexeddb/auto'
 
 // Mock localStorage for jsdom (it's broken by default)
