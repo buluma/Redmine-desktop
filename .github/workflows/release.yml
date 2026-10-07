@@ -8,6 +8,8 @@ on:
 # Grant workflow write permissions
 permissions:
   contents: write
+  attestations: write
+  id-token: write
 
 jobs:
   # Build macOS version (arm64 only)
@@ -117,6 +119,11 @@ jobs:
           find artifacts -type f \( -name "*.dmg" -o -name "*.zip" -o -name "*.blockmap" -o -name "latest-mac.yml" \) -exec cp {} release-files/ \;
           ls -la release-files/
       
+      - name: Generate artifact provenance attestations
+        uses: actions/attest@v4
+        with:
+          subject-path: release-files/*
+
       - name: Generate Release Notes
         run: |
           # Get previous tag
