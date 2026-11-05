@@ -8,8 +8,7 @@ on:
 
 jobs:
   verify:
-    if: false
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         node-version: ['22', '24']
