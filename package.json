@@ -17,7 +17,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@toast-ui/editor": "^3.2.2",
+    "@toast-ui/editor": "^3.2.3",
     "axios": "^1.21.1",
     "date-fns": "^4.4.0",
     "dexie": "^4.4.7",
