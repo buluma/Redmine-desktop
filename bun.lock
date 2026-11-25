@@ -17,7 +17,7 @@
         "react-dom": "^19.3.1",
         "react-markdown": "^10.1.0",
         "react-router-dom": "^7.18.5",
-        "react-window": "^2.5.2",
+        "react-window": "^2.5.4",
         "remark-gfm": "^4.0.1",
       },
       "devDependencies": {
@@ -888,7 +888,7 @@
 
     "react-router-dom": ["react-router-dom@7.18.5", "", { "dependencies": { "react-router": "7.18.5" }, "peerDependencies": { "react": ">=18", "react-dom": ">=18" } }, "sha512-9HcfDMU6JJ/fp6gJZYGwNE6RknVGS4kBjH1HkNw959mCJi70TVwdipQWv2FEol9uGpi+SZTFtVpJPtEQfayeOw=="],
 
-    "react-window": ["react-window@2.5.3", "", { "peerDependencies": { "@types/react": "^18.2.6 || ^19.0.0", "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" }, "optionalPeers": ["@types/react"] }, "sha512-zN/mX+4cLgwp8xDqQYKmgbzj/oZ2LrF4V8KbAbgkpA9zAt3+q4nWPe0MhvIDIh9c4kHPySSchNcd8DjyR6jItQ=="],
+    "react-window": ["react-window@2.5.4", "", { "peerDependencies": { "@types/react": "^18.2.6 || ^19.0.0", "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" }, "optionalPeers": ["@types/react"] }, "sha512-6fvaimB9b4ubVnYiTrFUJJS+sgV+z9Lk2llcZH6U+U/2zFSAfhfgZEOpJTC0Mj/WHxYq3GhniM5CReSExM7qRQ=="],
 
     "read-binary-file-arch": ["read-binary-file-arch@1.0.6", "", { "dependencies": { "debug": "^4.3.4" }, "bin": { "read-binary-file-arch": "cli.js" } }, "sha512-BNg9EN3DD3GsDXX7Aa8O4p92sryjkmzYYgmgTAc6CA4uGLEDzFfxOxugu21akOxpcXHiEgsYkC6nPsQvLLLmEg=="],
 
